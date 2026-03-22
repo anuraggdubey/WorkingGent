@@ -2,7 +2,7 @@
 
 WorkingGent is an agent workspace for people who want one calm place to run useful AI-assisted tasks without digging through technical clutter. It brings multiple task-focused agents into a single product surface so work can move from prompt to result with less friction.
 
-Live Link: `https://workinggent.vercel.app/`
+## Live Link: (`https://workinggent.vercel.app/`)
 
 The platform is built around a simple idea: different jobs need different kinds of agents. Instead of forcing one generic assistant to do everything, WorkingGent gives each workflow its own focused role inside the same workspace.
 
