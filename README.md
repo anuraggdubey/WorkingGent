@@ -1,36 +1,50 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# WorkingGent
 
-## Getting Started
+WorkingGent is an agent workspace for people who want one calm place to run useful AI-assisted tasks without digging through technical clutter. It brings multiple task-focused agents into a single product surface so work can move from prompt to result with less friction.
 
-First, run the development server:
+Live Link: `https://your-live-link-here.com`
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+The platform is built around a simple idea: different jobs need different kinds of agents. Instead of forcing one generic assistant to do everything, WorkingGent gives each workflow its own focused role inside the same workspace.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## What WorkingGent Does
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+WorkingGent helps users:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- generate and preview code-based projects
+- search the web and summarize live findings
+- draft and approve emails before sending
+- connect GitHub and analyze real repositories
+- upload documents and extract useful insights
+- automate browser actions and collect live page data
 
-## Learn More
+Everything is presented through a single interface designed to keep attention on the task, the output, and the next action.
 
-To learn more about Next.js, take a look at the following resources:
+## Agents Inside WorkingGent
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Coding Agent
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The Coding Agent turns natural-language product or interface requests into working project files. It can generate code, save outputs, prepare previews, and package the result so the user can review what was created right away.
 
-## Deploy on Vercel
+### Web Search Agent
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The Web Search Agent retrieves live information from the web and turns it into a readable summary. It focuses on evidence-backed answers and helps users scan current information faster.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Email Agent
+
+The Email Agent writes clear outbound emails from a short request or context brief. It supports a review-first flow so messaging can be checked before anything is sent.
+
+### GitHub Agent
+
+The GitHub Agent connects to GitHub, works with real repositories, and helps users inspect code, understand structure, and review implementation details from actual projects.
+
+### Document Agent
+
+The Document Agent analyzes uploaded files such as PDFs, spreadsheets, CSVs, JSON, and text documents. It helps turn raw files into summaries, observations, and direct answers.
+
+### Browser Automation Agent
+
+The Browser Automation Agent plans and performs controlled browser actions such as opening pages, navigating, extracting content, and returning the useful results from live websites.
+
+## Product Feel
+
+WorkingGent is designed as a practical operator workspace rather than a technical dashboard. The experience stays centered on outcomes: ask, run, review, and continue.

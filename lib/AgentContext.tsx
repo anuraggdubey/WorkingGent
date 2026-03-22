@@ -53,6 +53,13 @@ interface AgentContextType {
 }
 
 const STORAGE_KEYS = {
+    agents: "workinggent_platform_agents_v2",
+    activities: "workinggent_platform_activities_v2",
+    chartData: "workinggent_platform_chart_v2",
+    autoMode: "workinggent_platform_auto_v2",
+}
+
+const LEGACY_STORAGE_KEYS = {
     agents: "agentforge_platform_agents_v2",
     activities: "agentforge_platform_activities_v2",
     chartData: "agentforge_platform_chart_v2",
@@ -126,7 +133,8 @@ function readStorage<T>(key: string, fallback: T): T {
     if (typeof window === "undefined") return fallback
 
     try {
-        const raw = window.localStorage.getItem(key)
+        const legacyKey = LEGACY_STORAGE_KEYS[key as keyof typeof LEGACY_STORAGE_KEYS]
+        const raw = window.localStorage.getItem(key) ?? (legacyKey ? window.localStorage.getItem(legacyKey) : null)
         return raw ? (JSON.parse(raw) as T) : fallback
     } catch {
         return fallback
@@ -186,6 +194,18 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         setActivities(readStorage<ActivityLog[]>(STORAGE_KEYS.activities, []))
         setChartData(readStorage<ChartDataPoint[]>(STORAGE_KEYS.chartData, []))
         setAutoMode(readStorage<boolean>(STORAGE_KEYS.autoMode, false))
+
+        ;(Object.keys(STORAGE_KEYS) as Array<keyof typeof STORAGE_KEYS>).forEach((storageKey) => {
+            const nextKey = STORAGE_KEYS[storageKey]
+            const legacyKey = LEGACY_STORAGE_KEYS[storageKey]
+            const nextValue = window.localStorage.getItem(nextKey)
+            const legacyValue = window.localStorage.getItem(legacyKey)
+
+            if (!nextValue && legacyValue) {
+                window.localStorage.setItem(nextKey, legacyValue)
+            }
+        })
+
         setIsHydrated(true)
     }, [])
 

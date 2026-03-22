@@ -31,7 +31,7 @@ export async function searchTool(query: string) {
     url.searchParams.set("engine", "google")
 
     const response = await fetch(url.toString(), {
-        headers: { "User-Agent": "AgentForge/1.0" },
+        headers: { "User-Agent": "WorkingGent/1.0" },
         cache: "no-store",
     })
 

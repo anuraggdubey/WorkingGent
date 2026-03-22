@@ -4,9 +4,9 @@ import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { usePathname } from "next/navigation"
 import { Bell, Github, Loader2, LogIn, LogOut, Menu, Sparkles, Unplug, UserCircle2, UserPlus } from "lucide-react"
+import { SignInButton, SignUpButton } from "@clerk/nextjs"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { useAuth } from "@/lib/AuthContext"
-import AuthDialog from "@/components/auth/AuthDialog"
 
 const ROUTE_LABELS: Record<string, string> = {
     "/dashboard": "Overview",
@@ -30,8 +30,6 @@ type PlatformStatus = {
 export default function TopNavbar({ onOpenCommand }: { onOpenCommand: () => void }) {
     const { user, isAuthenticated, isHydrated, logout } = useAuth()
     const pathname = usePathname()
-    const [dialogMode, setDialogMode] = useState<"login" | "register">("login")
-    const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [platformStatus, setPlatformStatus] = useState<PlatformStatus | null>(null)
     const [githubBusy, setGithubBusy] = useState(false)
 
@@ -66,15 +64,14 @@ export default function TopNavbar({ onOpenCommand }: { onOpenCommand: () => void
     }
 
     return (
-        <>
-            <header className="fixed inset-x-0 top-0 z-50 px-4 pt-4 sm:px-6 lg:px-8 lg:pt-6">
+        <header className="fixed inset-x-0 top-0 z-50 px-4 pt-4 sm:px-6 lg:px-8 lg:pt-6">
                 <div className="mx-auto flex max-w-[1520px] items-center gap-3 rounded-[28px] border border-border bg-[color:var(--surface)] px-4 py-3 shadow-[var(--shadow-md)] backdrop-blur-xl sm:px-5 lg:px-6">
                     <Link href="/dashboard" className="flex min-w-0 items-center gap-3">
                         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[color:var(--primary-soft)] text-primary">
                             <Sparkles size={18} />
                         </div>
                         <div className="hidden sm:block">
-                            <div className="text-sm font-semibold tracking-[-0.03em] text-foreground">AgentForge</div>
+                            <div className="text-sm font-semibold tracking-[-0.03em] text-foreground">WorkingGent</div>
                             <div className="text-xs text-muted">{currentLabel} section</div>
                         </div>
                     </Link>
@@ -151,26 +148,18 @@ export default function TopNavbar({ onOpenCommand }: { onOpenCommand: () => void
                             </div>
                         ) : (
                             <div className="hidden items-center gap-2 md:flex">
-                                <button
-                                    onClick={() => {
-                                        setDialogMode("login")
-                                        setIsDialogOpen(true)
-                                    }}
-                                    className="button-secondary"
-                                >
-                                    <LogIn size={15} />
-                                    Login
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setDialogMode("register")
-                                        setIsDialogOpen(true)
-                                    }}
-                                    className="button-primary"
-                                >
-                                    <UserPlus size={15} />
-                                    Register
-                                </button>
+                                <SignInButton mode="modal">
+                                    <button className="button-secondary">
+                                        <LogIn size={15} />
+                                        Login
+                                    </button>
+                                </SignInButton>
+                                <SignUpButton mode="modal">
+                                    <button className="button-primary">
+                                        <UserPlus size={15} />
+                                        Register
+                                    </button>
+                                </SignUpButton>
                             </div>
                         )}
 
@@ -181,21 +170,14 @@ export default function TopNavbar({ onOpenCommand }: { onOpenCommand: () => void
                                 <span className="text-sm font-semibold">{profileLabel.slice(0, 1).toUpperCase()}</span>
                             </button>
                         ) : (
-                            <button
-                                onClick={() => {
-                                    setDialogMode("login")
-                                    setIsDialogOpen(true)
-                                }}
-                                className="button-secondary h-11 w-11 rounded-2xl p-0 md:hidden"
-                            >
-                                <LogIn size={16} />
-                            </button>
+                            <SignInButton mode="modal">
+                                <button className="button-secondary h-11 w-11 rounded-2xl p-0 md:hidden">
+                                    <LogIn size={16} />
+                                </button>
+                            </SignInButton>
                         )}
                     </div>
                 </div>
             </header>
-
-            <AuthDialog isOpen={isDialogOpen} onClose={() => setIsDialogOpen(false)} initialMode={dialogMode} />
-        </>
     )
 }

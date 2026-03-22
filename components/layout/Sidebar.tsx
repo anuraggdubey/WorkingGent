@@ -24,10 +24,10 @@ export default function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose:
                 <div className="flex items-center justify-between border-b border-border p-6">
                     <Link href="/dashboard" className="flex items-center gap-3 group" onClick={onClose}>
                         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-lg font-bold text-white shadow-lg shadow-primary/20 transition-all group-hover:scale-105">
-                            AF
+                            WG
                         </div>
                         <span className="text-xl font-heading font-bold tracking-tighter text-foreground">
-                            Agent<span className="text-primary">Forge</span>
+                            Working<span className="text-primary">Gent</span>
                         </span>
                     </Link>
 

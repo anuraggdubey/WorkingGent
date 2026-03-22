@@ -10,7 +10,7 @@ const ITEMS = [
     { href: "/activity", label: "Activity", icon: Activity, blurb: "Review recent work" },
     { href: "/analytics", label: "Analytics", icon: BarChart3, blurb: "Track performance" },
     { href: "/automation", label: "Automation", icon: Zap, blurb: "Execution readiness" },
-    { href: "/settings", label: "Settings", icon: Settings, blurb: "Runtime and tools" },
+    { href: "/settings", label: "Settings", icon: Settings, blurb: "Profile and workspace" },
 ]
 
 export default function RouteRail() {

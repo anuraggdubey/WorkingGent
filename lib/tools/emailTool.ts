@@ -31,7 +31,7 @@ function getTransportConfig() {
 export async function emailTool(input: EmailToolInput) {
     const { transport, from } = getTransportConfig()
     const info = await transport.sendMail({
-        from: `"AgentForge" <${from}>`,
+        from: `"WorkingGent" <${from}>`,
         to: input.to,
         subject: input.subject,
         text: input.body,

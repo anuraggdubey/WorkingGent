@@ -1,39 +1,14 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { ArrowUpRight, Bot, Github, Mail, Search, Sparkles } from "lucide-react"
+import { useMemo } from "react"
+import { ArrowUpRight, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { useAgentContext } from "@/lib/AgentContext"
 import EarningsAnalyticsPanel from "@/components/dashboard/EarningsAnalyticsPanel"
 import Leaderboard from "@/components/dashboard/Leaderboard"
 
-type PlatformStatus = {
-    llm?: {
-        configured: boolean
-        available: boolean
-        model: string
-    }
-    tools?: {
-        searchConfigured: boolean
-        emailConfigured: boolean
-        github?: {
-            configured: boolean
-            connected: boolean
-            login?: string
-        }
-    }
-}
-
 export default function Dashboard() {
-    const { agents, chartData, balance, isHydrated } = useAgentContext()
-    const [platformStatus, setPlatformStatus] = useState<PlatformStatus | null>(null)
-
-    useEffect(() => {
-        fetch("/api/platform-status")
-            .then((res) => res.json())
-            .then((data) => setPlatformStatus(data))
-            .catch(() => setPlatformStatus(null))
-    }, [])
+    const { agents, activities, chartData, balance, isHydrated } = useAgentContext()
 
     const tasksCompleted = useMemo(
         () => agents.reduce((acc, agent) => acc + agent.tasksCompleted, 0),
@@ -41,6 +16,14 @@ export default function Dashboard() {
     )
     const readyAgents = useMemo(
         () => agents.filter((agent) => agent.status !== "running").length,
+        [agents]
+    )
+    const successfulRuns = useMemo(
+        () => activities.filter((activity) => activity.type === "execution" && activity.status === "success").length,
+        [activities]
+    )
+    const activeNow = useMemo(
+        () => agents.filter((agent) => agent.status === "running").length,
         [agents]
     )
 
@@ -72,32 +55,12 @@ export default function Dashboard() {
                 </div>
 
                 <div className="panel p-5 sm:p-6">
-                    <div className="eyebrow">Runtime</div>
+                    <div className="eyebrow">Focus</div>
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                        <StatusRow
-                            icon={<Bot size={16} />}
-                            title="LLM runtime"
-                            value={platformStatus?.llm?.available ? "Available" : "Unavailable"}
-                            detail={platformStatus?.llm?.model ?? "No model configured"}
-                        />
-                        <StatusRow
-                            icon={<Search size={16} />}
-                            title="Search tool"
-                            value={platformStatus?.tools?.searchConfigured ? "Configured" : "Missing"}
-                            detail="SerpAPI live retrieval"
-                        />
-                        <StatusRow
-                            icon={<Mail size={16} />}
-                            title="Email tool"
-                            value={platformStatus?.tools?.emailConfigured ? "Configured" : "Missing"}
-                            detail="SMTP delivery"
-                        />
-                        <StatusRow
-                            icon={<Github size={16} />}
-                            title="GitHub tool"
-                            value={platformStatus?.tools?.github?.configured ? "Configured" : "Missing"}
-                            detail={platformStatus?.tools?.github?.login ? `@${platformStatus.tools.github.login}` : "Repository access"}
-                        />
+                        <MetricTile label="Ready now" value={String(readyAgents)} />
+                        <MetricTile label="Active now" value={String(activeNow)} />
+                        <MetricTile label="Successful runs" value={String(successfulRuns)} />
+                        <MetricTile label="Workspace mode" value="Product-first" />
                     </div>
                 </div>
             </section>
@@ -197,35 +160,6 @@ function MetricTile({ label, value }: { label: string; value: string }) {
         <div className="panel-subtle px-4 py-4">
             <div className="metric-label">{label}</div>
             <div className="metric-value mt-3">{value}</div>
-        </div>
-    )
-}
-
-function StatusRow({
-    icon,
-    title,
-    value,
-    detail,
-}: {
-    icon: React.ReactNode
-    title: string
-    value: string
-    detail: string
-}) {
-    return (
-        <div className="panel-subtle px-4 py-4">
-            <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-background/80 text-muted">
-                    {icon}
-                </div>
-                <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-3">
-                        <span className="text-sm font-semibold text-foreground">{title}</span>
-                        <span className="text-xs font-medium text-muted">{value}</span>
-                    </div>
-                    <div className="mt-1 text-sm text-subtle">{detail}</div>
-                </div>
-            </div>
         </div>
     )
 }
