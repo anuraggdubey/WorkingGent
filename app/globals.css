@@ -1,26 +1,297 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
+@theme {
   --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-panel: var(--panel);
+  --color-panel-strong: var(--panel-strong);
+  --color-primary: var(--primary);
+  --color-primary-soft: var(--primary-soft);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+  --font-sans: var(--font-inter), sans-serif;
+  --font-heading: var(--font-manrope), sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  --background: #eceae4;
+  --surface: rgba(241, 239, 233, 0.82);
+  --surface-elevated: rgba(235, 232, 225, 0.92);
+  --panel: #ebe8e1;
+  --panel-strong: #e2ded6;
+  --foreground: #11151c;
+  --foreground-soft: #4f5967;
+  --muted: #707986;
+  --primary: #5568ff;
+  --primary-soft: rgba(85, 104, 255, 0.12);
+  --success: #0f9f7d;
+  --warning: #b98635;
+  --error: #dc5d5d;
+  --border: rgba(17, 21, 28, 0.1);
+  --border-strong: rgba(17, 21, 28, 0.16);
+  --ring: rgba(85, 104, 255, 0.28);
+  --shadow-sm: 0 1px 2px rgba(17, 21, 28, 0.04), 0 10px 30px rgba(17, 21, 28, 0.04);
+  --shadow-md: 0 4px 18px rgba(17, 21, 28, 0.06), 0 28px 60px rgba(17, 21, 28, 0.08);
+  --shadow-lg: 0 12px 40px rgba(17, 21, 28, 0.1), 0 32px 80px rgba(17, 21, 28, 0.12);
+}
+
+.dark {
+  --background: #0b0f14;
+  --surface: rgba(18, 24, 33, 0.82);
+  --surface-elevated: rgba(21, 28, 38, 0.92);
+  --panel: #121821;
+  --panel-strong: #161d27;
+  --foreground: #eef2f7;
+  --foreground-soft: #b8c0cd;
+  --muted: #8591a3;
+  --primary: #7c87ff;
+  --primary-soft: rgba(124, 135, 255, 0.14);
+  --success: #36b794;
+  --warning: #d5a456;
+  --error: #f17f7f;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --ring: rgba(124, 135, 255, 0.28);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24), 0 10px 24px rgba(0, 0, 0, 0.18);
+  --shadow-md: 0 10px 36px rgba(0, 0, 0, 0.28), 0 26px 72px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.38), 0 40px 110px rgba(0, 0, 0, 0.24);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at top left, color-mix(in srgb, var(--primary) 7%, transparent), transparent 36%),
+      radial-gradient(circle at top right, rgba(124, 135, 255, 0.08), transparent 32%),
+      linear-gradient(180deg, color-mix(in srgb, var(--background) 92%, transparent), var(--background));
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    outline: none;
+  }
+
+  ::selection {
+    background: var(--primary-soft);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--foreground) 12%, transparent);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--foreground) 22%, transparent);
+}
+
+@layer utilities {
+  .page-shell {
+    @apply mx-auto w-full max-w-[1520px] px-4 pb-28 pt-28 sm:px-6 lg:px-8 lg:pb-12 lg:pt-36;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    @apply rounded-[28px];
+  }
+
+  .brutal-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    @apply rounded-[28px];
+  }
+
+  .panel-strong {
+    background: var(--surface-elevated);
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow-md);
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+    @apply rounded-[32px];
+  }
+
+  .panel-subtle {
+    background: color-mix(in srgb, var(--panel) 86%, transparent);
+    border: 1px solid var(--border);
+    @apply rounded-[24px];
+  }
+
+  .page-title {
+    @apply font-heading text-3xl font-semibold tracking-[-0.04em] text-[color:var(--foreground)] sm:text-4xl lg:text-[2.85rem];
+  }
+
+  .page-copy {
+    color: var(--foreground-soft);
+    @apply max-w-3xl text-sm leading-7 sm:text-[15px];
+  }
+
+  .eyebrow {
+    color: var(--muted);
+    @apply text-[11px] font-semibold uppercase tracking-[0.24em];
+  }
+
+  .input-shell {
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+    border: 1px solid var(--border);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    @apply rounded-2xl transition-all duration-200;
+  }
+
+  .input-shell:focus-within {
+    border-color: color-mix(in srgb, var(--primary) 48%, var(--border));
+    box-shadow: 0 0 0 5px var(--ring);
+  }
+
+  .button-primary {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 94%, white 6%), var(--primary));
+    color: white;
+    box-shadow: 0 10px 30px color-mix(in srgb, var(--primary) 24%, transparent);
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition-all duration-200 hover:translate-y-[-1px] hover:opacity-95 active:translate-y-0;
+  }
+
+  .button-secondary {
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+    border: 1px solid var(--border);
+    color: var(--foreground);
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition-all duration-200 hover:border-[color:var(--border-strong)] hover:bg-[color:var(--surface-elevated)];
+  }
+
+  .brutal-btn {
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+    border: 1px solid var(--border);
+    color: var(--foreground);
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition-all duration-200 hover:border-[color:var(--border-strong)] hover:bg-[color:var(--surface-elevated)];
+  }
+
+  .button-ghost {
+    color: var(--foreground-soft);
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium transition-colors duration-200 hover:bg-white/5 hover:text-[color:var(--foreground)];
+  }
+
+  .glass-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-md);
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+    @apply rounded-[32px];
+  }
+
+  .nav-pill {
+    border: 1px solid transparent;
+    color: var(--foreground-soft);
+    @apply inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-all duration-200;
+  }
+
+  .nav-pill:hover {
+    background: color-mix(in srgb, var(--panel) 82%, transparent);
+    color: var(--foreground);
+  }
+
+  .nav-pill-active {
+    background: var(--primary-soft);
+    border-color: color-mix(in srgb, var(--primary) 18%, transparent);
+    color: var(--foreground);
+  }
+
+  .nav-pill-index {
+    background: color-mix(in srgb, var(--foreground) 8%, transparent);
+    color: var(--muted);
+    @apply inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold;
+  }
+
+  .nav-pill-active .nav-pill-index {
+    background: color-mix(in srgb, var(--primary) 16%, transparent);
+    color: var(--primary);
+  }
+
+  .route-rail-current {
+    background: color-mix(in srgb, var(--panel) 72%, transparent);
+    border: 1px solid var(--border);
+    @apply rounded-[22px] px-4 py-3;
+  }
+
+  .metric-value {
+    @apply font-heading text-3xl font-semibold tracking-[-0.05em] sm:text-4xl;
+  }
+
+  .metric-label {
+    color: var(--muted);
+    @apply text-[11px] font-semibold uppercase tracking-[0.24em];
+  }
+
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--panel-strong) 72%, transparent) 20%,
+      color-mix(in srgb, var(--surface-elevated) 88%, transparent) 50%,
+      color-mix(in srgb, var(--panel-strong) 72%, transparent) 80%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.4s linear infinite;
+    @apply rounded-2xl;
+  }
+
+  .grid-bento {
+    @apply grid grid-cols-1 gap-4 lg:gap-5 xl:gap-6;
+  }
+
+  .text-subtle {
+    color: var(--foreground-soft);
+  }
+
+  .text-muted {
+    color: var(--muted);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
 }
