@@ -1,5 +1,6 @@
 "use client"
 
+import { usePathname } from "next/navigation"
 import { useState } from "react"
 import TopNavbar from "@/components/layout/TopNavbar"
 import RouteRail from "@/components/layout/RouteRail"
@@ -8,6 +9,11 @@ import CommandPalette from "@/components/layout/CommandPalette"
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
     const [commandOpen, setCommandOpen] = useState(false)
+    const pathname = usePathname()
+
+    if (pathname === "/") {
+        return <div className="min-h-screen bg-background text-foreground">{children}</div>
+    }
 
     return (
         <div className="min-h-screen bg-background text-foreground">

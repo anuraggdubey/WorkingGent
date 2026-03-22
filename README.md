@@ -2,7 +2,7 @@
 
 WorkingGent is an agent workspace for people who want one calm place to run useful AI-assisted tasks without digging through technical clutter. It brings multiple task-focused agents into a single product surface so work can move from prompt to result with less friction.
 
-Live Link: `https://your-live-link-here.com`
+Live Link: `https://workinggent.vercel.app/`
 
 The platform is built around a simple idea: different jobs need different kinds of agents. Instead of forcing one generic assistant to do everything, WorkingGent gives each workflow its own focused role inside the same workspace.
 
@@ -48,3 +48,11 @@ The Browser Automation Agent plans and performs controlled browser actions such 
 ## Product Feel
 
 WorkingGent is designed as a practical operator workspace rather than a technical dashboard. The experience stays centered on outcomes: ask, run, review, and continue.
+
+## Developer
+
+Developed by `WorkingGent Team`
+
+## License
+
+This project is licensed under the `MIT License`.
