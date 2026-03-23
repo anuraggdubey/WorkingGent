@@ -65,21 +65,104 @@ export function parseAgentOutput(text: string): ProjectFiles {
     return { html, css, js }
 }
 
-export async function runCodingAgent(prompt: string) {
+const LANGUAGE_LABELS: Record<string, string> = {
+    "html-css-js": "HTML / CSS / JS",
+    python: "Python",
+    javascript: "JavaScript",
+    typescript: "TypeScript",
+    react: "React (JSX/TSX)",
+    java: "Java",
+    cpp: "C++",
+    go: "Go",
+    rust: "Rust",
+    swift: "Swift",
+    ruby: "Ruby",
+    php: "PHP",
+}
+
+const SINGLE_FILE_SYSTEM_PROMPT = (lang: string) => `You are a senior software engineer.
+
+Your job is to generate clean, idiomatic, production-quality ${lang} code.
+
+Rules:
+1. Return a SINGLE fenced code block with the complete source file.
+2. The code must be complete, runnable, and well-structured.
+3. Include proper imports/includes at the top.
+4. Add clear inline comments for complex logic.
+5. Use modern language features and best practices.
+6. Never leave TODOs, placeholders, or incomplete sections.
+7. If the request involves a CLI tool, include argument parsing.
+8. If the request involves a web server, include routing and response handling.
+9. Make the code substantial and impressive, not a minimal stub.
+10. Output ONLY the code block, no explanations before or after.`
+
+export function parseSingleFileOutput(text: string, language: string): { code: string; filename: string } {
+    const match = text.match(/```(?:\w+)?\s*([\s\S]*?)```/)
+    const code = match?.[1]?.trim()
+
+    if (!code) {
+        throw new AgentExecutionError("INVALID_LLM_OUTPUT", "Coding agent did not return a code block", 502)
+    }
+
+    const extensions: Record<string, string> = {
+        python: "main.py",
+        javascript: "index.js",
+        typescript: "index.ts",
+        react: "App.tsx",
+        java: "Main.java",
+        cpp: "main.cpp",
+        go: "main.go",
+        rust: "main.rs",
+        swift: "main.swift",
+        ruby: "main.rb",
+        php: "index.php",
+    }
+
+    return { code, filename: extensions[language] ?? "main.txt" }
+}
+
+export async function runCodingAgent(prompt: string, language?: string) {
+    const lang = language && language !== "html-css-js" ? language : null
+
+    if (!lang) {
+        // Original HTML/CSS/JS flow
+        let raw: string
+        try {
+            raw = await completeWithOpenRouter({
+                system: CODING_AGENT_SYSTEM_PROMPT,
+                user: `Build this project.\n\nUser request:\n${prompt}\n\nDefault quality expectations:\n- Make it visually advanced and product-grade.\n- Add rich structure, not a minimal mockup.\n- If the request is for a dashboard, admin panel, analytics page, workspace, or SaaS UI, make it dense, polished, and interactive by default.\n- Return only the three required files.`,
+                maxTokens: 8000,
+                temperature: 0.7,
+            })
+        } catch (error) {
+            throw createLlmError(error, "Coding generation failed")
+        }
+
+        const files = parseAgentOutput(raw)
+        const projectId = `project-${Date.now()}`
+
+        await fileTool(projectId, [
+            { name: "index.html", content: files.html },
+            { name: "style.css", content: files.css },
+            { name: "script.js", content: files.js },
+        ])
+
+        return {
+            projectId,
+            files,
+            raw,
+            preview: previewTool(projectId),
+            language: "html-css-js",
+        }
+    }
+
+    // Single-file language flow
+    const langLabel = LANGUAGE_LABELS[lang] ?? lang
     let raw: string
     try {
         raw = await completeWithOpenRouter({
-            system: CODING_AGENT_SYSTEM_PROMPT,
-            user: `Build this project.
-
-User request:
-${prompt}
-
-Default quality expectations:
-- Make it visually advanced and product-grade.
-- Add rich structure, not a minimal mockup.
-- If the request is for a dashboard, admin panel, analytics page, workspace, or SaaS UI, make it dense, polished, and interactive by default.
-- Return only the three required files.`,
+            system: SINGLE_FILE_SYSTEM_PROMPT(langLabel),
+            user: `Write ${langLabel} code for this task:\n\n${prompt}`,
             maxTokens: 8000,
             temperature: 0.7,
         })
@@ -87,19 +170,17 @@ Default quality expectations:
         throw createLlmError(error, "Coding generation failed")
     }
 
-    const files = parseAgentOutput(raw)
+    const { code, filename } = parseSingleFileOutput(raw, lang)
     const projectId = `project-${Date.now()}`
 
-    await fileTool(projectId, [
-        { name: "index.html", content: files.html },
-        { name: "style.css", content: files.css },
-        { name: "script.js", content: files.js },
-    ])
+    await fileTool(projectId, [{ name: filename, content: code }])
 
     return {
         projectId,
-        files,
+        files: null,
+        singleFile: { code, filename, language: lang },
         raw,
-        preview: previewTool(projectId),
+        preview: null,
+        language: lang,
     }
 }

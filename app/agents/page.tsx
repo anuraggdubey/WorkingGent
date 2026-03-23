@@ -283,6 +283,7 @@ export default function AgentsPage() {
     const [agentSheetOpen, setAgentSheetOpen] = useState(false)
 
     const [prompt, setPrompt] = useState("")
+    const [codingLanguage, setCodingLanguage] = useState("html-css-js")
     const [files, setFiles] = useState<GeneratedFiles | null>(null)
     const [projectId, setProjectId] = useState<string | null>(null)
     const [activeTab, setActiveTab] = useState<"html" | "css" | "js" | "preview">("preview")
@@ -298,6 +299,7 @@ export default function AgentsPage() {
     const [documentQuestion, setDocumentQuestion] = useState("")
     const [documentResult, setDocumentResult] = useState<DocumentResult | null>(null)
     const [browserResult, setBrowserResult] = useState<BrowserAutomationResult | null>(null)
+    const [singleFile, setSingleFile] = useState<{ code: string; filename: string; language: string } | null>(null)
 
     const selectAgent = (agent: AgentDef) => {
         setSelectedAgent(agent)
@@ -342,6 +344,7 @@ export default function AgentsPage() {
         setError(null)
         setFiles(null)
         setProjectId(null)
+        setSingleFile(null)
         setSteps(initSteps(CODING_STEPS))
         setRightPanelOpen(true)
         startAgentRun("coding", `Building project from prompt: ${prompt}`)
@@ -362,7 +365,7 @@ export default function AgentsPage() {
             const response = await fetch("/api/run-coding-agent", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ prompt }),
+                body: JSON.stringify({ prompt, language: codingLanguage }),
             })
             const data = await response.json()
             if (!response.ok) throw new Error(data.error ?? "Coding agent failed")
@@ -374,7 +377,8 @@ export default function AgentsPage() {
             setStepStatus(4, "running")
             await delay(350)
             setStepStatus(4, "done")
-            setFiles(data.files)
+            setFiles(data.files ?? null)
+            setSingleFile(data.singleFile ?? null)
             setProjectId(data.projectId)
             setActiveTab("preview")
             setRunState("done")
@@ -735,18 +739,45 @@ export default function AgentsPage() {
                                 </div>
                             </div>
                         ) : (
-                            <div className="flex gap-3">
-                                <div className="input-shell flex flex-1 items-center gap-2 px-3.5 py-3">
-                                    <input
-                                        value={prompt}
-                                        onChange={(e) => setPrompt(e.target.value)}
-                                        onKeyDown={(e) => e.key === "Enter" && void runAgent()}
-                                        placeholder={selectedAgent.placeholder}
-                                        disabled={runState === "running"}
-                                        className="w-full bg-transparent text-[15px] text-foreground placeholder:text-muted sm:text-sm"
-                                    />
+                            <div className="space-y-3">
+                                {selectedAgent.id === "coding" && (
+                                    <div className="flex items-center gap-2">
+                                        <label className="text-xs text-muted whitespace-nowrap">Language</label>
+                                        <select
+                                            value={codingLanguage}
+                                            onChange={(e) => setCodingLanguage(e.target.value)}
+                                            disabled={runState === "running"}
+                                            className="input-shell w-full rounded-lg px-3 py-2.5 text-[13px] text-foreground sm:w-auto sm:text-xs"
+                                            style={{ minHeight: 40 }}
+                                        >
+                                            <option value="html-css-js">HTML / CSS / JS</option>
+                                            <option value="python">Python</option>
+                                            <option value="javascript">JavaScript (Node)</option>
+                                            <option value="typescript">TypeScript</option>
+                                            <option value="react">React (JSX)</option>
+                                            <option value="java">Java</option>
+                                            <option value="cpp">C++</option>
+                                            <option value="go">Go</option>
+                                            <option value="rust">Rust</option>
+                                            <option value="swift">Swift</option>
+                                            <option value="ruby">Ruby</option>
+                                            <option value="php">PHP</option>
+                                        </select>
+                                    </div>
+                                )}
+                                <div className="flex gap-3">
+                                    <div className="input-shell flex flex-1 items-center gap-2 px-3.5 py-3">
+                                        <input
+                                            value={prompt}
+                                            onChange={(e) => setPrompt(e.target.value)}
+                                            onKeyDown={(e) => e.key === "Enter" && void runAgent()}
+                                            placeholder={selectedAgent.placeholder}
+                                            disabled={runState === "running"}
+                                            className="w-full bg-transparent text-[15px] text-foreground placeholder:text-muted sm:text-sm"
+                                        />
+                                    </div>
+                                    <RunButton runState={runState} canRun={!!canRun} onClick={runAgent} agent={selectedAgent.id} />
                                 </div>
-                                <RunButton runState={runState} canRun={!!canRun} onClick={runAgent} agent={selectedAgent.id} />
                             </div>
                         )}
 
@@ -853,6 +884,58 @@ export default function AgentsPage() {
                                             </a>
                                         </div>
                                     )}
+                                </div>
+                            )}
+
+                            {/* Single-file coding output (non-HTML languages) */}
+                            {selectedAgent.id === "coding" && runState === "done" && singleFile && (
+                                <div className="animate-fade-in mt-4 overflow-hidden rounded-lg border border-border">
+                                    {/* Header bar — matches the HTML/CSS/JS tab bar style */}
+                                    <div className="flex items-center justify-between border-b border-border bg-surface px-3.5 py-2.5">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="flex items-center gap-1.5 rounded-md bg-primary-soft px-2.5 py-1.5">
+                                                <Eye size={12} className="text-primary" />
+                                                <span className="text-xs font-medium text-foreground">Preview</span>
+                                            </div>
+                                            <span className="text-xs text-muted">·</span>
+                                            <span className="text-xs font-medium text-foreground">{singleFile.filename}</span>
+                                            <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-primary">
+                                                {singleFile.language}
+                                            </span>
+                                            <span className="hidden text-[10px] text-muted sm:inline">
+                                                {singleFile.code.split("\n").length} lines
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(singleFile.code)
+                                                    setCopied("single")
+                                                    setTimeout(() => setCopied(null), 1800)
+                                                }}
+                                                className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs text-muted hover:bg-surface-elevated hover:text-foreground"
+                                                style={{ minHeight: 36 }}
+                                            >
+                                                {copied === "single" ? <Check size={13} /> : <Copy size={13} />}
+                                                <span className="hidden sm:inline">{copied === "single" ? "Copied" : "Copy"}</span>
+                                            </button>
+                                            {projectId && (
+                                                <a
+                                                    href={`/api/download/${projectId}`}
+                                                    download
+                                                    className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs text-muted hover:bg-surface-elevated hover:text-foreground"
+                                                    style={{ minHeight: 36 }}
+                                                >
+                                                    <Download size={13} />
+                                                    <span className="hidden sm:inline">Download</span>
+                                                </a>
+                                            )}
+                                        </div>
+                                    </div>
+                                    {/* Code display — same height as the HTML preview iframe */}
+                                    <div className="h-[60vh] overflow-auto bg-[#0d1117] p-4 sm:h-[500px]">
+                                        <pre className="text-[13px] leading-relaxed text-gray-300 sm:text-xs"><code>{singleFile.code}</code></pre>
+                                    </div>
                                 </div>
                             )}
 
