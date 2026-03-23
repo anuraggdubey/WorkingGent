@@ -29,7 +29,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} ${manrope.variable} min-h-screen bg-background text-foreground antialiased`}>
+      <body className={`${inter.variable} ${manrope.variable} min-h-screen bg-background text-foreground antialiased`} suppressHydrationWarning>
         <ClerkProvider>
           <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
             <AuthProvider>

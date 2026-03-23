@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import {
     AtSign,
@@ -8,6 +8,8 @@ import {
     Braces,
     Check,
     CheckCircle2,
+    ChevronDown,
+    ChevronUp,
     Chrome,
     Code2,
     Copy,
@@ -19,14 +21,19 @@ import {
     FileType,
     Github,
     Globe,
+    Layers,
     Loader2,
     Mail,
+    PanelRightOpen,
+    PanelRightClose,
     PenLine,
     Play,
     RefreshCw,
+    RotateCcw,
     Search,
     Send,
     Upload,
+    X,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import type { Components } from "react-markdown"
@@ -35,7 +42,7 @@ import { useAgentContext } from "@/lib/AgentContext"
 const GitHubAgent = dynamic(() => import("@/components/agents/GitHubAgent"), {
     ssr: false,
     loading: () => (
-        <div className="panel p-6">
+        <div className="p-6">
             <div className="skeleton h-6 w-40" />
             <div className="skeleton mt-4 h-24" />
             <div className="skeleton mt-4 h-72" />
@@ -94,42 +101,42 @@ type BrowserAutomationResult = {
 const AGENTS: AgentDef[] = [
     {
         id: "coding",
-        label: "Coding Agent",
+        label: "Coding",
         icon: Code2,
         description: "Generate projects, save files to disk, preview them, and package downloads.",
         placeholder: "Build a launch page for a boutique product studio with smooth sections and a signup CTA.",
     },
     {
         id: "websearch",
-        label: "Web Search Agent",
+        label: "Web Search",
         icon: Search,
         description: "Fetch live results first, then summarize only what was retrieved.",
         placeholder: "Summarize the latest AI developer tooling news and list the original sources.",
     },
     {
         id: "email",
-        label: "Email Agent",
+        label: "Email",
         icon: Mail,
         description: "Draft email content first, then send only after explicit approval.",
         placeholder: "Describe the email you want to send.",
     },
     {
         id: "github",
-        label: "GitHub Agent",
+        label: "GitHub",
         icon: Github,
         description: "Connect a GitHub account, select a repository, then analyze real code.",
         placeholder: "Review the auth architecture and suggest the fastest fixes.",
     },
     {
         id: "document",
-        label: "Document Agent",
+        label: "Document",
         icon: FileText,
         description: "Upload PDFs, spreadsheets, CSVs, JSON, or text files and get summaries, insights, and answers.",
         placeholder: "Ask a question about the uploaded file.",
     },
     {
         id: "browser",
-        label: "Browser Automation Agent",
+        label: "Browser",
         icon: Chrome,
         description: "Plan safe browser actions and use Puppeteer to navigate websites, click, type, and extract live content.",
         placeholder: "Open https://example.com and extract the main hero text.",
@@ -173,34 +180,6 @@ const BROWSER_STEPS: Omit<AgentStep, "status">[] = [
     { step: 4, title: "Return result", detail: "Package extracted content and execution notes for review." },
 ]
 
-const EXAMPLES = {
-    coding: [
-        "Build a pricing page for a premium developer tool",
-        "Create a portfolio site with a bold hero and project case studies",
-        "Make a minimal todo app with categories and filters",
-    ],
-    websearch: [
-        "Summarize the latest model releases for coding assistants",
-        "What changed recently in the AI browser market?",
-        "Find current news about developer productivity tools",
-    ],
-    email: [
-        "Follow up after a design interview and share continued interest",
-        "Request a project kickoff meeting with a client",
-        "Write a concise weekly project status update",
-    ],
-    document: [
-        "Summarize this report and list the biggest takeaways",
-        "What risks or anomalies are visible in this spreadsheet?",
-        "Extract the key metrics and explain what they mean",
-    ],
-    browser: [
-        "Open https://news.ycombinator.com and extract the first 10 headlines",
-        "Open https://example.com and capture the main hero text",
-        "Open https://vercel.com/pricing and extract the plan names",
-    ],
-} as const
-
 function getErrorMessage(error: unknown, fallback: string) {
     const message = error instanceof Error ? error.message : fallback
     if (message.includes("429 Provider returned error")) {
@@ -209,12 +188,99 @@ function getErrorMessage(error: unknown, fallback: string) {
     return message
 }
 
+/* ── Bottom Sheet Component ── */
+function BottomSheet({
+    open,
+    onClose,
+    children,
+}: {
+    open: boolean
+    onClose: () => void
+    children: React.ReactNode
+}) {
+    const [visible, setVisible] = useState(false)
+    const [closing, setClosing] = useState(false)
+
+    useEffect(() => {
+        if (open) {
+            setVisible(true)
+            setClosing(false)
+        } else if (visible && !closing) {
+            setClosing(true)
+            setTimeout(() => {
+                setVisible(false)
+                setClosing(false)
+            }, 250)
+        }
+    }, [open])
+
+    const handleClose = () => {
+        setClosing(true)
+        setTimeout(() => {
+            setVisible(false)
+            setClosing(false)
+            onClose()
+        }, 250)
+    }
+
+    if (!visible) return null
+
+    return (
+        <>
+            <div
+                className={`bottom-sheet-backdrop ${closing ? "animate-backdrop-out" : "animate-backdrop-in"}`}
+                onClick={handleClose}
+            />
+            <div className={`bottom-sheet ${closing ? "animate-slide-down" : "animate-slide-up"}`}>
+                <div className="bottom-sheet-handle" />
+                {children}
+            </div>
+        </>
+    )
+}
+
+/* ── Collapsible Section ── */
+function Collapsible({
+    title,
+    children,
+    defaultOpen = false,
+}: {
+    title: string
+    children: React.ReactNode
+    defaultOpen?: boolean
+}) {
+    const [open, setOpen] = useState(defaultOpen)
+
+    return (
+        <div>
+            <button
+                onClick={() => setOpen(!open)}
+                className="collapsible-header w-full text-left"
+            >
+                <span className="text-[11px] font-medium uppercase tracking-wider text-muted">{title}</span>
+                {open ? <ChevronUp size={14} className="text-muted" /> : <ChevronDown size={14} className="text-muted" />}
+            </button>
+            <div
+                className="collapsible-content"
+                style={{
+                    maxHeight: open ? "2000px" : "0px",
+                    opacity: open ? 1 : 0,
+                }}
+            >
+                {children}
+            </div>
+        </div>
+    )
+}
+
 export default function AgentsPage() {
     const { startAgentRun, completeAgentRun, failAgentRun, logAgentEvent } = useAgentContext()
     const [selectedAgent, setSelectedAgent] = useState<AgentDef>(AGENTS[0])
     const [runState, setRunState] = useState<RunState>("idle")
     const [error, setError] = useState<string | null>(null)
     const [steps, setSteps] = useState<AgentStep[]>([])
+    const [rightPanelOpen, setRightPanelOpen] = useState(false)
+    const [agentSheetOpen, setAgentSheetOpen] = useState(false)
 
     const [prompt, setPrompt] = useState("")
     const [files, setFiles] = useState<GeneratedFiles | null>(null)
@@ -249,6 +315,8 @@ export default function AgentsPage() {
         setDocumentResult(null)
         setBrowserResult(null)
         setSteps([])
+        setRightPanelOpen(false)
+        setAgentSheetOpen(false)
     }
 
     const initSteps = (template: Omit<AgentStep, "status">[]) =>
@@ -267,12 +335,15 @@ export default function AgentsPage() {
         if (selectedAgent.id === "browser" && prompt.trim()) await runBrowserAgent()
     }
 
+    /* ── Agent runners (unchanged backend logic) ── */
+
     const runCodingAgent = async () => {
         setRunState("running")
         setError(null)
         setFiles(null)
         setProjectId(null)
         setSteps(initSteps(CODING_STEPS))
+        setRightPanelOpen(true)
         startAgentRun("coding", `Building project from prompt: ${prompt}`)
 
         ;[0, 1, 2].forEach((index) => {
@@ -536,456 +607,531 @@ export default function AgentsPage() {
     const fileContent = (tab: "html" | "css" | "js") =>
         !files ? "" : tab === "html" ? files.html : tab === "css" ? files.css : files.js
 
+    const hasOutput = runState !== "idle" || selectedAgent.id === "github"
+    const SelectedIcon = selectedAgent.icon
+
     return (
-        <div className="space-y-6">
-            <section className="grid-bento lg:grid-cols-[minmax(0,1.2fr)_360px]">
-                <div className="panel-strong p-6 sm:p-8">
-                    <div className="eyebrow">Workspace</div>
-                    <h1 className="page-title mt-3">One command surface, six live agents.</h1>
-                    <p className="page-copy mt-4">
-                        Pick an agent, enter the task, and review results in the same place without hopping through extra setup panels.
-                    </p>
+        <div className="flex h-[calc(100vh-3rem)] h-[calc(100dvh-3rem)] overflow-hidden sm:h-[calc(100vh-3.5rem)] sm:h-[calc(100dvh-3.5rem)]">
+            {/* ── LEFT SIDEBAR (desktop only) ── */}
+            <aside className="hidden w-52 shrink-0 border-r border-border lg:block">
+                <div className="p-3">
+                    <div className="px-2 py-2 text-[10px] font-medium uppercase tracking-wider text-muted">Agents</div>
+                    <nav className="mt-1 space-y-0.5">
+                        {AGENTS.map((agent) => {
+                            const Icon = agent.icon
+                            const isActive = selectedAgent.id === agent.id
+                            return (
+                                <button
+                                    key={agent.id}
+                                    onClick={() => selectAgent(agent)}
+                                    className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors ${
+                                        isActive
+                                            ? "bg-primary-soft text-foreground font-medium"
+                                            : "text-foreground-soft hover:bg-surface-elevated hover:text-foreground"
+                                    }`}
+                                >
+                                    <Icon size={15} className={isActive ? "text-primary" : ""} />
+                                    {agent.label}
+                                </button>
+                            )
+                        })}
+                    </nav>
                 </div>
-                <div className="panel p-5 sm:p-6">
-                    <div className="eyebrow">Selected flow</div>
-                    <div className="mt-4 text-2xl font-heading font-semibold tracking-[-0.04em] text-foreground">
-                        {selectedAgent.label}
-                    </div>
-                    <p className="mt-3 text-sm leading-6 text-subtle">{selectedAgent.description}</p>
-                </div>
-            </section>
+            </aside>
 
-            <section className="panel-strong p-4 sm:p-5">
-                <div className="eyebrow">Command card</div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                    {AGENTS.map((agent) => (
+            {/* ── CENTER PANEL ── */}
+            <div className="flex min-w-0 flex-1 flex-col">
+                <div className="flex-1 overflow-y-auto">
+                    <div className="mx-auto max-w-3xl px-4 py-5 sm:px-6 sm:py-6">
+                        {/* ── Agent Selector (mobile: tap to open bottom sheet) ── */}
                         <button
-                            key={agent.id}
-                            onClick={() => selectAgent(agent)}
-                            className={`inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium transition-all ${
-                                selectedAgent.id === agent.id
-                                    ? "bg-[color:var(--primary-soft)] text-foreground"
-                                    : "bg-background/72 text-subtle hover:text-foreground"
-                            }`}
+                            onClick={() => setAgentSheetOpen(true)}
+                            className="mb-4 flex w-full items-center justify-between rounded-lg bg-surface-elevated px-3.5 py-3 text-left transition-colors active:bg-surface-elevated/80 lg:hidden"
                         >
-                            <agent.icon size={16} />
-                            {agent.label}
+                            <div className="flex items-center gap-2.5">
+                                <SelectedIcon size={16} className="text-primary" />
+                                <span className="text-sm font-medium text-foreground">{selectedAgent.label}</span>
+                            </div>
+                            <Layers size={14} className="text-muted" />
                         </button>
-                    ))}
-                </div>
 
-                <div className={`mt-5 grid gap-4 ${
-                    selectedAgent.id === "email"
-                        ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
-                        : selectedAgent.id === "document"
-                            ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
-                            : "lg:grid-cols-[minmax(0,1fr)_auto]"
-                }`}>
-                    {selectedAgent.id === "email" ? (
-                        <>
-                            <div className="input-shell px-4 py-4">
-                                <label className="eyebrow block">Recipient</label>
-                                <div className="mt-3 flex items-center gap-3">
-                                    <AtSign size={16} className="text-muted" />
-                                    <input
-                                        type="email"
-                                        value={emailTo}
-                                        onChange={(event) => setEmailTo(event.target.value)}
-                                        placeholder="someone@example.com"
+                        {/* ── Command Input Area ── */}
+                        {selectedAgent.id === "github" ? (
+                            <div className="rounded-lg border border-border bg-surface p-4">
+                                <div className="text-sm font-medium text-foreground">GitHub workflow</div>
+                                <p className="mt-1 text-xs text-foreground-soft">
+                                    Connect GitHub, choose a repository, index it, then prompt against the real codebase below.
+                                </p>
+                            </div>
+                        ) : selectedAgent.id === "email" ? (
+                            <div className="space-y-3">
+                                <div className="flex flex-col gap-3 sm:flex-row">
+                                    <div className="input-shell flex flex-1 items-center gap-2 px-3 py-3">
+                                        <AtSign size={14} className="shrink-0 text-muted" />
+                                        <input
+                                            type="email"
+                                            value={emailTo}
+                                            onChange={(e) => setEmailTo(e.target.value)}
+                                            placeholder="recipient@example.com"
+                                            disabled={runState === "running"}
+                                            className="w-full bg-transparent text-[15px] text-foreground placeholder:text-muted sm:text-sm"
+                                        />
+                                    </div>
+                                    <div className="input-shell flex flex-1 items-center px-3 py-3">
+                                        <input
+                                            value={emailSubject}
+                                            onChange={(e) => setEmailSubject(e.target.value)}
+                                            placeholder="Subject (optional)"
+                                            disabled={runState === "running"}
+                                            className="w-full bg-transparent text-[15px] text-foreground placeholder:text-muted sm:text-sm"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="input-shell px-3 py-3">
+                                    <textarea
+                                        value={emailContext}
+                                        onChange={(e) => setEmailContext(e.target.value)}
+                                        placeholder="Describe the goal, tone, and details..."
                                         disabled={runState === "running"}
-                                        className="w-full bg-transparent text-base text-foreground placeholder:text-muted"
+                                        rows={3}
+                                        className="w-full resize-none bg-transparent text-[15px] leading-relaxed text-foreground placeholder:text-muted sm:text-sm"
                                     />
                                 </div>
-                            </div>
-                            <div className="input-shell px-4 py-4">
-                                <label className="eyebrow block">Subject</label>
-                                <input
-                                    value={emailSubject}
-                                    onChange={(event) => setEmailSubject(event.target.value)}
-                                    placeholder="Optional subject line"
-                                    disabled={runState === "running"}
-                                    className="mt-3 w-full bg-transparent text-base text-foreground placeholder:text-muted"
-                                />
-                            </div>
-                            <RunButton runState={runState} canRun={!!canRunEmail} onClick={runAgent} agent="email" />
-                        </>
-                    ) : selectedAgent.id === "document" ? (
-                        <>
-                            <label className="input-shell flex cursor-pointer items-center gap-4 px-5 py-4">
-                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[color:var(--primary-soft)] text-primary">
-                                    <Upload size={18} />
+                                <div className="flex justify-end">
+                                    <RunButton runState={runState} canRun={!!canRunEmail} onClick={runAgent} agent="email" />
                                 </div>
-                                <div className="min-w-0 flex-1">
-                                    <div className="text-sm font-semibold text-foreground">
-                                        {documentFile ? documentFile.name : "Upload a document"}
+                            </div>
+                        ) : selectedAgent.id === "document" ? (
+                            <div className="space-y-3">
+                                <label className="input-shell flex cursor-pointer items-center gap-3 px-3.5 py-3.5">
+                                    <Upload size={18} className="shrink-0 text-muted" />
+                                    <div className="min-w-0 flex-1">
+                                        <div className="text-[15px] text-foreground sm:text-sm">
+                                            {documentFile ? documentFile.name : "Upload a document"}
+                                        </div>
+                                        {!documentFile && (
+                                            <div className="text-xs text-muted">PDF, Excel, CSV, JSON, TXT</div>
+                                        )}
                                     </div>
-                                    <div className="mt-1 text-sm text-subtle">
-                                        PDF, Excel, CSV, JSON, and TXT are supported.
-                                    </div>
-                                </div>
-                                <input
-                                    type="file"
-                                    accept=".pdf,.xlsx,.xls,.csv,.json,.txt"
-                                    onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)}
-                                    disabled={runState === "running"}
-                                    className="hidden"
-                                />
-                            </label>
-                            <div className="input-shell px-4 py-4">
-                                <label className="eyebrow block">Question</label>
-                                <input
-                                    value={documentQuestion}
-                                    onChange={(event) => setDocumentQuestion(event.target.value)}
-                                    placeholder={selectedAgent.placeholder}
-                                    disabled={runState === "running"}
-                                    className="mt-3 w-full bg-transparent text-base text-foreground placeholder:text-muted"
-                                />
-                            </div>
-                            <RunButton runState={runState} canRun={!!canRunDocument} onClick={runAgent} agent="document" />
-                        </>
-                    ) : selectedAgent.id === "github" ? (
-                        <div className="panel-subtle col-span-full px-5 py-5">
-                            <div className="text-lg font-semibold tracking-[-0.03em] text-foreground">GitHub workflow</div>
-                            <p className="mt-2 max-w-3xl text-sm leading-7 text-subtle">
-                                Connect GitHub manually, choose a repository, index it, then prompt against the real codebase in the dedicated analysis panel below.
-                            </p>
-                            <div className="mt-4 flex flex-wrap gap-2">
-                                {["Connect account", "Select repository", "Index repository", "Run prompt"].map((item) => (
-                                    <span key={item} className="rounded-full bg-background/70 px-3 py-2 text-sm text-subtle">
-                                        {item}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                    ) : selectedAgent.id === "browser" ? (
-                        <>
-                            <div className="input-shell flex items-center gap-4 px-5 py-4">
-                                <selectedAgent.icon size={18} className="text-primary" />
-                                <input
-                                    value={prompt}
-                                    onChange={(event) => setPrompt(event.target.value)}
-                                    onKeyDown={(event) => event.key === "Enter" && void runAgent()}
-                                    placeholder={selectedAgent.placeholder}
-                                    disabled={runState === "running"}
-                                    className="w-full bg-transparent text-base text-foreground placeholder:text-muted"
-                                />
-                            </div>
-                            <RunButton runState={runState} canRun={!!canRun} onClick={runAgent} agent={selectedAgent.id} />
-                        </>
-                    ) : (
-                        <>
-                            <div className="input-shell flex items-center gap-4 px-5 py-4">
-                                <selectedAgent.icon size={18} className="text-primary" />
-                                <input
-                                    value={prompt}
-                                    onChange={(event) => setPrompt(event.target.value)}
-                                    onKeyDown={(event) => event.key === "Enter" && void runAgent()}
-                                    placeholder={selectedAgent.placeholder}
-                                    disabled={runState === "running"}
-                                    className="w-full bg-transparent text-base text-foreground placeholder:text-muted"
-                                />
-                            </div>
-                            <RunButton runState={runState} canRun={!!canRun} onClick={runAgent} agent={selectedAgent.id} />
-                        </>
-                    )}
-                </div>
-            </section>
-
-            {selectedAgent.id === "email" && (
-                <section className="panel p-5 sm:p-6">
-                    <div className="eyebrow">Email context</div>
-                    <textarea
-                        value={emailContext}
-                        onChange={(event) => setEmailContext(event.target.value)}
-                        placeholder="Describe the goal, tone, and details the email should include."
-                        disabled={runState === "running"}
-                        rows={4}
-                        className="mt-4 w-full rounded-[24px] border border-border bg-background/70 px-4 py-4 text-base text-foreground placeholder:text-muted"
-                    />
-                </section>
-            )}
-
-            <div className={`transition-all duration-300 ${runState === "idle" && selectedAgent.id !== "github" ? "pointer-events-none translate-y-3 opacity-0" : "opacity-100"}`}>
-                {selectedAgent.id === "coding" && (
-                    <div className="grid-bento xl:grid-cols-[320px_minmax(0,1fr)]">
-                        <StepsPanel steps={steps} runState={runState} error={error}>
-                            {runState === "done" && projectId && (
-                                <a href={`/api/download/${projectId}`} download className="button-secondary mt-5 w-full">
-                                    <Download size={16} />
-                                    Download project
-                                </a>
-                            )}
-                        </StepsPanel>
-
-                        <div className="panel overflow-hidden">
-                            <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-                                {([
-                                    { id: "preview", label: "Preview", icon: Eye },
-                                    { id: "html", label: "index.html", icon: FileCode },
-                                    { id: "css", label: "style.css", icon: FileType },
-                                    { id: "js", label: "script.js", icon: Braces },
-                                ] as const).map((tab) => (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setActiveTab(tab.id)}
-                                        className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm transition-all ${
-                                            activeTab === tab.id ? "bg-[color:var(--primary-soft)] text-foreground" : "text-subtle"
-                                        }`}
-                                    >
-                                        <tab.icon size={15} />
-                                        {tab.label}
-                                    </button>
-                                ))}
-                                {activeTab !== "preview" && files && (
-                                    <button
-                                        onClick={() => {
-                                            navigator.clipboard.writeText(fileContent(activeTab as "html" | "css" | "js"))
-                                            setCopied(activeTab)
-                                            setTimeout(() => setCopied(null), 1800)
-                                        }}
-                                        className="button-ghost ml-auto"
-                                    >
-                                        {copied === activeTab ? <Check size={14} /> : <Copy size={14} />}
-                                        {copied === activeTab ? "Copied" : "Copy"}
-                                    </button>
-                                )}
-                            </div>
-                            <div className="min-h-[500px]">
-                                {activeTab === "preview" ? (
-                                    runState === "done" && projectId ? (
-                                        <iframe
-                                            src={`/api/preview/${projectId}`}
-                                            className="h-[620px] w-full border-0"
-                                            sandbox="allow-scripts allow-same-origin"
-                                            title="Preview"
+                                    <input
+                                        type="file"
+                                        accept=".pdf,.xlsx,.xls,.csv,.json,.txt"
+                                        onChange={(e) => setDocumentFile(e.target.files?.[0] ?? null)}
+                                        disabled={runState === "running"}
+                                        className="hidden"
+                                    />
+                                </label>
+                                <div className="flex gap-3">
+                                    <div className="input-shell flex flex-1 items-center px-3 py-3">
+                                        <input
+                                            value={documentQuestion}
+                                            onChange={(e) => setDocumentQuestion(e.target.value)}
+                                            placeholder={selectedAgent.placeholder}
+                                            disabled={runState === "running"}
+                                            className="w-full bg-transparent text-[15px] text-foreground placeholder:text-muted sm:text-sm"
                                         />
-                                    ) : (
-                                        <CenteredMsg loading={runState === "running"} title="Generated preview appears here." />
-                                    )
-                                ) : (
-                                    <div className="h-[620px] overflow-auto bg-[#0d1117] p-6 text-sm text-gray-300">
-                                        {files ? <pre className="whitespace-pre-wrap">{fileContent(activeTab as "html" | "css" | "js")}</pre> : "Run the coding agent to generate files."}
                                     </div>
-                                )}
+                                    <RunButton runState={runState} canRun={!!canRunDocument} onClick={runAgent} agent="document" />
+                                </div>
                             </div>
-                        </div>
-                    </div>
-                )}
+                        ) : (
+                            <div className="flex gap-3">
+                                <div className="input-shell flex flex-1 items-center gap-2 px-3.5 py-3">
+                                    <input
+                                        value={prompt}
+                                        onChange={(e) => setPrompt(e.target.value)}
+                                        onKeyDown={(e) => e.key === "Enter" && void runAgent()}
+                                        placeholder={selectedAgent.placeholder}
+                                        disabled={runState === "running"}
+                                        className="w-full bg-transparent text-[15px] text-foreground placeholder:text-muted sm:text-sm"
+                                    />
+                                </div>
+                                <RunButton runState={runState} canRun={!!canRun} onClick={runAgent} agent={selectedAgent.id} />
+                            </div>
+                        )}
 
-                {selectedAgent.id === "websearch" && (
-                    <div className="grid-bento xl:grid-cols-[320px_minmax(0,1fr)]">
-                        <StepsPanel steps={steps} runState={runState} error={error} />
-                        <div className="panel p-5 sm:p-6">
-                            <div className="eyebrow">Live search result</div>
-                            {runState === "running" && !searchResult && <CenteredMsg loading title="Fetching sources and preparing summary." />}
-                            {runState === "error" && error && <ErrorBox message={error} />}
-                            {searchResult && (
-                                <div className="space-y-6">
-                                    <div className="flex items-center gap-2 text-sm text-subtle">
-                                        <Globe size={16} className="text-primary" />
-                                        Results for {searchResult.query}
-                                    </div>
-                                    <div className="prose prose-sm max-w-none dark:prose-invert">
-                                        <ReactMarkdown components={mdComponents}>{searchResult.result}</ReactMarkdown>
-                                    </div>
-                                    <div className="space-y-3">
-                                        {searchResult.sources.map((source) => (
-                                            <a
-                                                key={source.link}
-                                                href={source.link}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="panel-subtle block px-4 py-4"
-                                            >
-                                                <div className="flex items-start justify-between gap-3">
-                                                    <div>
-                                                        <div className="text-sm font-semibold text-foreground">{source.title}</div>
-                                                        <div className="mt-2 text-sm leading-7 text-subtle">{source.snippet}</div>
+                        {/* ── Output Area ── */}
+                        <div className="mt-6">
+                            {selectedAgent.id === "github" && <GitHubAgent />}
+
+                            {selectedAgent.id !== "github" && runState === "idle" && (
+                                <div className="animate-fade-in py-16 text-center sm:py-20">
+                                    <SelectedIcon size={28} className="mx-auto text-muted sm:size-[24px]" />
+                                    <p className="mt-3 text-[15px] text-muted sm:text-sm">{selectedAgent.label} is ready</p>
+                                    <p className="mt-1 text-xs text-muted">Enter a task above to begin</p>
+                                </div>
+                            )}
+
+                            {/* Steps stream */}
+                            {steps.length > 0 && selectedAgent.id !== "github" && (
+                                <div className="animate-fade-in space-y-1">
+                                    {steps.map((step) => (
+                                        <div key={step.step} className="flex items-center gap-3 rounded-lg px-2 py-2 sm:gap-2.5 sm:py-1.5">
+                                            <div className="shrink-0">
+                                                {step.status === "done" ? (
+                                                    <CheckCircle2 size={16} className="text-success sm:size-[14px]" />
+                                                ) : step.status === "running" ? (
+                                                    <Loader2 size={16} className="animate-spin text-primary sm:size-[14px]" />
+                                                ) : (
+                                                    <div className="flex h-4 w-4 items-center justify-center rounded-full border border-border text-[9px] text-muted sm:h-3.5 sm:w-3.5">
+                                                        {step.step}
                                                     </div>
-                                                    <ExternalLink size={14} className="mt-1 text-muted" />
-                                                </div>
-                                            </a>
-                                        ))}
-                                    </div>
+                                                )}
+                                            </div>
+                                            <span className={`text-[13px] sm:text-xs ${step.status === "pending" ? "text-muted" : "text-foreground"}`}>
+                                                {step.title}
+                                            </span>
+                                            {step.status !== "pending" && (
+                                                <span className="hidden text-xs text-foreground-soft sm:inline">— {step.detail}</span>
+                                            )}
+                                        </div>
+                                    ))}
                                 </div>
                             )}
-                        </div>
-                    </div>
-                )}
 
-                {selectedAgent.id === "document" && (
-                    <div className="grid-bento xl:grid-cols-[320px_minmax(0,1fr)]">
-                        <StepsPanel steps={steps} runState={runState} error={error}>
-                            {documentFile && (
-                                <div className="panel-subtle mt-5 px-4 py-4">
-                                    <div className="eyebrow">Uploaded file</div>
-                                    <div className="mt-3 text-sm font-medium text-foreground">{documentFile.name}</div>
-                                </div>
-                            )}
-                        </StepsPanel>
-                        <div className="panel p-5 sm:p-6">
-                            {runState === "running" && !documentResult && <CenteredMsg loading title="Parsing the document and preparing analysis." />}
-                            {documentResult && (
-                                <div className="space-y-6">
-                                    <div className="grid gap-4 sm:grid-cols-2">
-                                        <div className="panel-subtle px-4 py-4">
-                                            <div className="eyebrow">File</div>
-                                            <div className="mt-3 text-sm font-medium text-foreground">{documentResult.fileName}</div>
-                                        </div>
-                                        <div className="panel-subtle px-4 py-4">
-                                            <div className="eyebrow">Detected type</div>
-                                            <div className="mt-3 text-sm font-medium uppercase text-foreground">{documentResult.fileType}</div>
-                                        </div>
+                            {error && <ErrorBox message={error} onRetry={() => { setRunState("idle"); setError(null) }} />}
+
+                            {/* Coding output */}
+                            {selectedAgent.id === "coding" && runState === "done" && files && (
+                                <div className="animate-fade-in mt-4 overflow-hidden rounded-lg border border-border">
+                                    <div className="flex items-center gap-1 overflow-x-auto border-b border-border px-3 py-2">
+                                        {([
+                                            { id: "preview", label: "Preview", icon: Eye },
+                                            { id: "html", label: "HTML", icon: FileCode },
+                                            { id: "css", label: "CSS", icon: FileType },
+                                            { id: "js", label: "JS", icon: Braces },
+                                        ] as const).map((tab) => (
+                                            <button
+                                                key={tab.id}
+                                                onClick={() => setActiveTab(tab.id)}
+                                                className={`inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors ${
+                                                    activeTab === tab.id ? "bg-primary-soft text-foreground" : "text-muted hover:text-foreground"
+                                                }`}
+                                                style={{ minHeight: 36 }}
+                                            >
+                                                <tab.icon size={12} />
+                                                {tab.label}
+                                            </button>
+                                        ))}
+                                        {activeTab !== "preview" && (
+                                            <button
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(fileContent(activeTab as "html" | "css" | "js"))
+                                                    setCopied(activeTab)
+                                                    setTimeout(() => setCopied(null), 1800)
+                                                }}
+                                                className="ml-auto p-2 text-xs text-muted hover:text-foreground"
+                                                style={{ minHeight: 36, minWidth: 36 }}
+                                            >
+                                                {copied === activeTab ? <Check size={14} /> : <Copy size={14} />}
+                                            </button>
+                                        )}
                                     </div>
-                                    {documentResult.truncated && (
-                                        <div className="rounded-[24px] border border-amber-500/20 bg-amber-500/10 px-4 py-4 text-sm text-amber-600 dark:text-amber-300">
-                                            Large file detected. Content was trimmed before analysis so the response stays focused.
+                                    {activeTab === "preview" ? (
+                                        projectId ? (
+                                            <iframe
+                                                src={`/api/preview/${projectId}`}
+                                                className="h-[60vh] w-full border-0 sm:h-[500px]"
+                                                sandbox="allow-scripts allow-same-origin"
+                                                title="Preview"
+                                            />
+                                        ) : (
+                                            <div className="flex h-[60vh] items-center justify-center sm:h-[500px]">
+                                                <div className="skeleton h-6 w-32" />
+                                            </div>
+                                        )
+                                    ) : (
+                                        <div className="h-[60vh] overflow-auto bg-[#0d1117] p-4 text-xs text-gray-300 sm:h-[500px]">
+                                            <pre className="whitespace-pre-wrap">{fileContent(activeTab as "html" | "css" | "js")}</pre>
                                         </div>
                                     )}
-                                    <div className="panel-subtle px-5 py-5">
-                                        <div className="eyebrow">Analysis</div>
-                                        <div className="prose prose-sm mt-4 max-w-none dark:prose-invert">
-                                            <ReactMarkdown components={mdComponents}>{documentResult.analysis}</ReactMarkdown>
+                                    {projectId && (
+                                        <div className="border-t border-border px-3 py-2">
+                                            <a href={`/api/download/${projectId}`} download className="button-secondary text-xs">
+                                                <Download size={14} />
+                                                Download
+                                            </a>
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
                             )}
-                            {runState === "error" && error && <ErrorBox message={error} />}
-                        </div>
-                    </div>
-                )}
 
-                {selectedAgent.id === "browser" && (
-                    <div className="grid-bento xl:grid-cols-[320px_minmax(0,1fr)]">
-                        <StepsPanel steps={steps} runState={runState} error={error} />
-                        <div className="panel p-5 sm:p-6">
-                            <div className="eyebrow">Browser result</div>
-                            {runState === "running" && !browserResult && <CenteredMsg loading title="Planning steps and running Puppeteer." />}
-                            {runState === "error" && error && <ErrorBox message={error} />}
-                            {browserResult && (
-                                <div className="space-y-6">
-                                    <div className="grid gap-4 sm:grid-cols-2">
-                                        <div className="panel-subtle px-4 py-4">
-                                            <div className="eyebrow">Final URL</div>
-                                            <div className="mt-3 break-all text-sm font-medium text-foreground">{browserResult.finalUrl}</div>
-                                        </div>
-                                        <div className="panel-subtle px-4 py-4">
-                                            <div className="eyebrow">Expected result</div>
-                                            <div className="mt-3 text-sm font-medium text-foreground">{browserResult.expectedResult}</div>
-                                        </div>
+                            {/* Web search output */}
+                            {selectedAgent.id === "websearch" && searchResult && (
+                                <div className="animate-fade-in mt-4 space-y-4">
+                                    <div className="flex items-center gap-2 text-xs text-muted">
+                                        <Globe size={13} />
+                                        Results for: {searchResult.query}
                                     </div>
-
-                                    <div className="panel-subtle px-5 py-5">
-                                        <div className="eyebrow">Planned steps</div>
-                                        <div className="mt-4 space-y-2">
-                                            {browserResult.steps.map((step) => (
-                                                <div key={step} className="text-sm leading-6 text-foreground">{step}</div>
-                                            ))}
-                                        </div>
+                                    <div className="prose prose-sm max-w-none text-[15px] leading-relaxed sm:text-sm dark:prose-invert">
+                                        <ReactMarkdown components={mdComponents}>{searchResult.result}</ReactMarkdown>
                                     </div>
-
-                                    <div className="panel-subtle px-5 py-5">
-                                        <div className="eyebrow">Execution log</div>
-                                        <div className="mt-4 space-y-2">
-                                            {browserResult.results.map((result) => (
-                                                <div key={result} className="text-sm leading-6 text-subtle">{result}</div>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div className="panel-subtle px-5 py-5">
-                                        <div className="eyebrow">Extracted data</div>
-                                        <div className="mt-4 whitespace-pre-wrap text-sm leading-7 text-foreground">
-                                            {browserResult.extractedText || "No text was extracted."}
-                                        </div>
-                                    </div>
+                                    {searchResult.sources.length > 0 && (
+                                        <Collapsible title="Sources" defaultOpen={true}>
+                                            <div className="space-y-1">
+                                                {searchResult.sources.map((source) => (
+                                                    <a
+                                                        key={source.link}
+                                                        href={source.link}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="flex items-start justify-between gap-3 rounded-lg px-2 py-3 text-xs hover:bg-surface-elevated sm:py-2"
+                                                        style={{ minHeight: 44 }}
+                                                    >
+                                                        <div>
+                                                            <div className="font-medium text-foreground">{source.title}</div>
+                                                            <div className="mt-0.5 text-foreground-soft">{source.snippet}</div>
+                                                        </div>
+                                                        <ExternalLink size={11} className="mt-0.5 shrink-0 text-muted" />
+                                                    </a>
+                                                ))}
+                                            </div>
+                                        </Collapsible>
+                                    )}
                                 </div>
                             )}
-                        </div>
-                    </div>
-                )}
+                            {selectedAgent.id === "websearch" && runState === "running" && !searchResult && (
+                                <LoadingState text="Fetching sources..." />
+                            )}
 
-                {selectedAgent.id === "github" && <GitHubAgent />}
-                {selectedAgent.id === "email" && (
-                    <div className="grid-bento xl:grid-cols-[320px_minmax(0,1fr)]">
-                        <StepsPanel steps={steps} runState={runState} error={error} />
-                        <div className="panel p-5 sm:p-6">
-                            {runState === "running" && !generatedEmail && <CenteredMsg loading title="Drafting the email." />}
-                            {generatedEmail && (
-                                <div className="space-y-6">
-                                    <div className="grid gap-4 sm:grid-cols-2">
-                                        <div className="panel-subtle px-4 py-4">
-                                            <div className="eyebrow">To</div>
-                                            <div className="mt-3 text-sm font-medium text-foreground">{emailTo}</div>
-                                        </div>
-                                        <div className="panel-subtle px-4 py-4">
-                                            <div className="eyebrow">Subject</div>
-                                            <div className="mt-3 text-sm font-medium text-foreground">{generatedEmail.subject}</div>
-                                        </div>
+                            {/* Email output */}
+                            {selectedAgent.id === "email" && generatedEmail && (
+                                <div className="animate-fade-in mt-4 space-y-3">
+                                    <div className="flex flex-col gap-1 text-xs sm:flex-row sm:gap-3">
+                                        <div><span className="text-muted">To:</span> <span className="text-foreground">{emailTo}</span></div>
+                                        <div><span className="text-muted">Subject:</span> <span className="text-foreground">{generatedEmail.subject}</span></div>
                                     </div>
-                                    <div className="panel-subtle px-5 py-5">
-                                        <div className="eyebrow">Draft</div>
-                                        <div className="mt-4 whitespace-pre-wrap text-sm leading-7 text-foreground">
-                                            {generatedEmail.body}
-                                        </div>
+                                    <div className="whitespace-pre-wrap rounded-lg border border-border bg-surface p-4 text-[15px] leading-relaxed text-foreground sm:text-sm">
+                                        {generatedEmail.body}
                                     </div>
                                     {emailSendState === "sent" && (
-                                        <div className="rounded-[24px] bg-emerald-500/10 px-4 py-4 text-sm text-success">{emailSentMsg}</div>
+                                        <div className="text-xs text-success">{emailSentMsg}</div>
                                     )}
                                     {emailSendState === "error" && <ErrorBox message={emailSentMsg} />}
                                     {emailSendState !== "sent" && (
-                                        <div className="flex flex-col gap-3 sm:flex-row">
-                                            <button onClick={sendEmail} disabled={emailSendState === "sending"} className="button-primary flex-1">
-                                                {emailSendState === "sending" ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                                                Approve and send
+                                        <div className="flex gap-2">
+                                            <button onClick={sendEmail} disabled={emailSendState === "sending"} className="button-primary text-xs">
+                                                {emailSendState === "sending" ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                                                Approve & Send
                                             </button>
-                                            <button onClick={runEmailAgent} className="button-secondary">
-                                                <RefreshCw size={16} />
+                                            <button onClick={runEmailAgent} className="button-secondary text-xs">
+                                                <RefreshCw size={14} />
                                                 Regenerate
                                             </button>
                                         </div>
                                     )}
                                 </div>
                             )}
-                            {runState === "error" && error && <ErrorBox message={error} />}
+                            {selectedAgent.id === "email" && runState === "running" && !generatedEmail && (
+                                <LoadingState text="Drafting email..." />
+                            )}
+
+                            {/* Document output */}
+                            {selectedAgent.id === "document" && documentResult && (
+                                <div className="animate-fade-in mt-4 space-y-3">
+                                    <div className="flex flex-col gap-1 text-xs sm:flex-row sm:gap-4">
+                                        <div><span className="text-muted">File:</span> <span className="text-foreground">{documentResult.fileName}</span></div>
+                                        <div><span className="text-muted">Type:</span> <span className="text-foreground uppercase">{documentResult.fileType}</span></div>
+                                    </div>
+                                    {documentResult.truncated && (
+                                        <div className="text-xs text-warning">Content was trimmed for analysis.</div>
+                                    )}
+                                    <div className="prose prose-sm max-w-none text-[15px] leading-relaxed sm:text-sm dark:prose-invert">
+                                        <ReactMarkdown components={mdComponents}>{documentResult.analysis}</ReactMarkdown>
+                                    </div>
+                                </div>
+                            )}
+                            {selectedAgent.id === "document" && runState === "running" && !documentResult && (
+                                <LoadingState text="Analyzing document..." />
+                            )}
+
+                            {/* Browser output */}
+                            {selectedAgent.id === "browser" && browserResult && (
+                                <div className="animate-fade-in mt-4 space-y-4">
+                                    {/* URL Bar */}
+                                    <div className="flex items-center gap-2.5 rounded-lg border border-border bg-surface px-3.5 py-3">
+                                        <Globe size={14} className="shrink-0 text-primary" />
+                                        <a
+                                            href={browserResult.finalUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground hover:underline sm:text-xs"
+                                        >
+                                            {browserResult.finalUrl}
+                                        </a>
+                                        <ExternalLink size={12} className="shrink-0 text-muted" />
+                                    </div>
+
+                                    {/* Automation Plan */}
+                                    {browserResult.steps.length > 0 && (
+                                        <div className="rounded-lg border border-border">
+                                            <div className="border-b border-border px-3.5 py-2.5">
+                                                <div className="text-[11px] font-medium uppercase tracking-wider text-muted">Automation Plan</div>
+                                            </div>
+                                            <div className="divide-y divide-border">
+                                                {browserResult.steps.map((step, i) => {
+                                                    const stepText = step.replace(/^\d+\.\s*/, "")
+                                                    return (
+                                                        <div key={i} className="flex items-start gap-3 px-3.5 py-2.5">
+                                                            <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-soft text-[10px] font-semibold text-primary">
+                                                                {i + 1}
+                                                            </div>
+                                                            <span className="text-[13px] leading-relaxed text-foreground sm:text-xs">{stepText}</span>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Execution Log */}
+                                    {browserResult.results.length > 0 && (
+                                        <div className="rounded-lg border border-border">
+                                            <div className="border-b border-border px-3.5 py-2.5">
+                                                <div className="text-[11px] font-medium uppercase tracking-wider text-muted">Execution Log</div>
+                                            </div>
+                                            <div className="divide-y divide-border">
+                                                {browserResult.results.map((r, i) => (
+                                                    <div key={i} className="flex items-center gap-2.5 px-3.5 py-2.5">
+                                                        <CheckCircle2 size={13} className="shrink-0 text-success" />
+                                                        <span className="text-[13px] text-foreground-soft sm:text-xs">{r}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Extracted Content */}
+                                    <div className="rounded-lg border border-border">
+                                        <div className="flex items-center justify-between border-b border-border px-3.5 py-2.5">
+                                            <div className="text-[11px] font-medium uppercase tracking-wider text-muted">Extracted Content</div>
+                                            {browserResult.extractedText && (
+                                                <button
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(browserResult.extractedText)
+                                                        setCopied("browser")
+                                                        setTimeout(() => setCopied(null), 1800)
+                                                    }}
+                                                    className="flex items-center gap-1 text-[11px] text-muted hover:text-foreground"
+                                                    style={{ minHeight: 32, minWidth: 32 }}
+                                                >
+                                                    {copied === "browser" ? <Check size={12} /> : <Copy size={12} />}
+                                                    <span className="hidden sm:inline">{copied === "browser" ? "Copied" : "Copy"}</span>
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="max-h-[300px] overflow-y-auto px-3.5 py-3 sm:max-h-[400px]">
+                                            {browserResult.extractedText ? (
+                                                <div className="whitespace-pre-wrap text-[15px] leading-relaxed text-foreground sm:text-sm">
+                                                    {browserResult.extractedText}
+                                                </div>
+                                            ) : (
+                                                <div className="py-4 text-center text-[13px] text-muted sm:text-xs">No text extracted</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            {selectedAgent.id === "browser" && runState === "running" && !browserResult && (
+                                <LoadingState text="Running browser..." />
+                            )}
                         </div>
                     </div>
-                )}
+                </div>
             </div>
 
-            {runState === "idle" && selectedAgent.id !== "github" && (
-                <section className="panel p-6 text-center sm:p-8">
-                    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[24px] bg-[color:var(--primary-soft)] text-primary">
-                        <selectedAgent.icon size={28} />
-                    </div>
-                    <h2 className="mt-5 font-heading text-2xl font-semibold tracking-[-0.04em] text-foreground">
-                        {selectedAgent.label} is ready
-                    </h2>
-                    <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-subtle">
-                        Use the command card above to describe the task in natural language. The workspace adapts to the selected agent instead of sending you through separate setup screens.
-                    </p>
-                    <div className="mt-6 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                        {EXAMPLES[selectedAgent.id as "coding" | "websearch" | "email" | "document" | "browser"].map((example) => (
-                            <button
-                                key={example}
-                                onClick={() => (
-                                    selectedAgent.id === "email"
-                                        ? setEmailContext(example)
-                                        : selectedAgent.id === "document"
-                                            ? setDocumentQuestion(example)
-                                            : setPrompt(example)
-                                )}
-                                className="panel-subtle px-4 py-3 text-left text-sm text-subtle transition-colors hover:text-foreground"
-                            >
-                                {example}
+            {/* ── RIGHT PANEL — desktop only, collapsible ── */}
+            {hasOutput && (
+                <aside className={`hidden shrink-0 border-l border-border transition-all lg:block ${rightPanelOpen ? "w-72" : "w-0 overflow-hidden"}`}>
+                    <div className="flex h-full flex-col">
+                        <div className="flex items-center justify-between border-b border-border px-3 py-2">
+                            <span className="text-[10px] font-medium uppercase tracking-wider text-muted">Details</span>
+                            <button onClick={() => setRightPanelOpen(!rightPanelOpen)} className="text-muted hover:text-foreground" style={{ minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                {rightPanelOpen ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}
                             </button>
-                        ))}
+                        </div>
+                        {rightPanelOpen && (
+                            <div className="flex-1 overflow-y-auto p-3">
+                                <div className="space-y-3">
+                                    <div>
+                                        <div className="text-[10px] font-medium uppercase tracking-wider text-muted">Agent</div>
+                                        <div className="mt-1 text-sm font-medium text-foreground">{selectedAgent.label}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-[10px] font-medium uppercase tracking-wider text-muted">Status</div>
+                                        <div className={`mt-1 text-sm font-medium ${
+                                            runState === "running" ? "text-primary"
+                                            : runState === "done" ? "text-success"
+                                            : runState === "error" ? "text-error"
+                                            : "text-muted"
+                                        }`}>
+                                            {runState === "running" ? "Running..." : runState === "done" ? "Complete" : runState === "error" ? "Failed" : "Idle"}
+                                        </div>
+                                    </div>
+                                    {steps.length > 0 && (
+                                        <div>
+                                            <div className="text-[10px] font-medium uppercase tracking-wider text-muted">Log</div>
+                                            <div className="mt-1 space-y-1">
+                                                {steps.map((step) => (
+                                                    <div key={step.step} className="flex items-center gap-1.5 text-xs">
+                                                        {step.status === "done" ? (
+                                                            <CheckCircle2 size={10} className="text-success" />
+                                                        ) : step.status === "running" ? (
+                                                            <Loader2 size={10} className="animate-spin text-primary" />
+                                                        ) : (
+                                                            <div className="h-2.5 w-2.5 rounded-full border border-border" />
+                                                        )}
+                                                        <span className={step.status === "pending" ? "text-muted" : "text-foreground-soft"}>
+                                                            {step.title}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
-                </section>
+                </aside>
             )}
+
+            {/* ── Bottom Sheet: Agent Selector (mobile) ── */}
+            <BottomSheet open={agentSheetOpen} onClose={() => setAgentSheetOpen(false)}>
+                <div className="px-4 pb-4 pt-2">
+                    <div className="mb-3 text-xs font-medium uppercase tracking-wider text-muted">Select Agent</div>
+                    <nav className="space-y-1">
+                        {AGENTS.map((agent) => {
+                            const Icon = agent.icon
+                            const isActive = selectedAgent.id === agent.id
+                            return (
+                                <button
+                                    key={agent.id}
+                                    onClick={() => selectAgent(agent)}
+                                    className={`flex w-full items-center gap-3 rounded-xl px-3.5 py-3.5 text-left transition-colors ${
+                                        isActive
+                                            ? "bg-primary-soft text-foreground"
+                                            : "text-foreground-soft active:bg-surface-elevated"
+                                    }`}
+                                    style={{ minHeight: 52 }}
+                                >
+                                    <Icon size={18} className={isActive ? "text-primary" : "text-muted"} />
+                                    <div>
+                                        <div className="text-[15px] font-medium">{agent.label}</div>
+                                        <div className="mt-0.5 text-xs text-muted">{agent.description}</div>
+                                    </div>
+                                    {isActive && <CheckCircle2 size={16} className="ml-auto text-primary" />}
+                                </button>
+                            )
+                        })}
+                    </nav>
+                </div>
+            </BottomSheet>
         </div>
     )
 }
+
+/* ── Subcomponents ── */
 
 function RunButton({
     runState,
@@ -999,92 +1145,70 @@ function RunButton({
     agent: AgentId
 }) {
     const labels: Record<AgentId, [React.ReactNode, React.ReactNode]> = {
-        coding: [<><Play size={16} /> Run</>, <><Loader2 size={16} className="animate-spin" /> Building</>],
-        websearch: [<><Search size={16} /> Search</>, <><Loader2 size={16} className="animate-spin" /> Searching</>],
-        email: [<><PenLine size={16} /> Draft</>, <><Loader2 size={16} className="animate-spin" /> Drafting</>],
-        github: [<><Github size={16} /> Open</>, <><Loader2 size={16} className="animate-spin" /> Loading</>],
-        document: [<><FileText size={16} /> Analyze</>, <><Loader2 size={16} className="animate-spin" /> Analyzing</>],
-        browser: [<><Chrome size={16} /> Run</>, <><Loader2 size={16} className="animate-spin" /> Running</>],
+        coding: [<><Play size={15} /> <span className="hidden sm:inline">Run</span></>, <><Loader2 size={15} className="animate-spin" /> <span className="hidden sm:inline">Building</span></>],
+        websearch: [<><Search size={15} /> <span className="hidden sm:inline">Search</span></>, <><Loader2 size={15} className="animate-spin" /> <span className="hidden sm:inline">Searching</span></>],
+        email: [<><PenLine size={15} /> <span className="hidden sm:inline">Draft</span></>, <><Loader2 size={15} className="animate-spin" /> <span className="hidden sm:inline">Drafting</span></>],
+        github: [<><Github size={15} /> <span className="hidden sm:inline">Open</span></>, <><Loader2 size={15} className="animate-spin" /> <span className="hidden sm:inline">Loading</span></>],
+        document: [<><FileText size={15} /> <span className="hidden sm:inline">Analyze</span></>, <><Loader2 size={15} className="animate-spin" /> <span className="hidden sm:inline">Analyzing</span></>],
+        browser: [<><Chrome size={15} /> <span className="hidden sm:inline">Run</span></>, <><Loader2 size={15} className="animate-spin" /> <span className="hidden sm:inline">Running</span></>],
     }
 
     const [idleLabel, runningLabel] = labels[agent]
 
     return (
-        <button onClick={onClick} disabled={!canRun || runState === "running"} className="button-primary min-h-[56px] min-w-[140px] disabled:opacity-50">
+        <button
+            onClick={onClick}
+            disabled={!canRun || runState === "running"}
+            className="button-primary shrink-0 disabled:opacity-40"
+            style={{ minWidth: 48 }}
+        >
             {runState === "running" ? runningLabel : idleLabel}
         </button>
     )
 }
 
-function StepsPanel({
-    steps,
-    runState,
-    error,
-    children,
-}: {
-    steps: AgentStep[]
-    runState: RunState
-    error: string | null
-    children?: React.ReactNode
-}) {
+function LoadingState({ text }: { text: string }) {
     return (
-        <div className="panel p-5 sm:p-6">
-            <div className="eyebrow">Execution log</div>
-            <div className="mt-5 space-y-3">
-                {steps.map((step) => (
-                    <div key={step.step} className="panel-subtle px-4 py-4">
-                        <div className="flex items-start gap-3">
-                            <div className={`mt-0.5 flex h-9 w-9 items-center justify-center rounded-2xl ${
-                                step.status === "done"
-                                    ? "bg-[color:var(--primary-soft)] text-primary"
-                                    : step.status === "running"
-                                        ? "bg-[color:var(--primary-soft)] text-primary"
-                                        : "bg-background/70 text-muted"
-                            }`}>
-                                {step.status === "done" ? <CheckCircle2 size={16} /> : step.status === "running" ? <Loader2 size={16} className="animate-spin" /> : <span className="text-xs font-semibold">{step.step}</span>}
-                            </div>
-                            <div>
-                                <div className="text-sm font-semibold text-foreground">{step.title}</div>
-                                {step.status !== "pending" && <div className="mt-1 text-sm leading-7 text-subtle">{step.detail}</div>}
-                            </div>
-                        </div>
-                    </div>
-                ))}
+        <div className="animate-fade-in mt-6 space-y-3">
+            <div className="flex items-center gap-2 text-[13px] text-muted sm:text-xs">
+                <Loader2 size={14} className="animate-spin" />
+                {text}
             </div>
-            {runState === "error" && error && <ErrorBox message={error} />}
-            {children}
+            <div className="space-y-2">
+                <div className="skeleton h-4 w-3/4" />
+                <div className="skeleton h-4 w-full" />
+                <div className="skeleton h-4 w-2/3" />
+                <div className="skeleton h-4 w-5/6" />
+            </div>
         </div>
     )
 }
 
-function CenteredMsg({ title, loading = false }: { title: string; loading?: boolean }) {
+function ErrorBox({ message, onRetry }: { message: string; onRetry?: () => void }) {
     return (
-        <div className="flex h-full min-h-[320px] flex-col items-center justify-center gap-4 text-center">
-            {loading ? <div className="skeleton h-14 w-14 rounded-full" /> : <div className="h-14 w-14 rounded-full bg-[color:var(--primary-soft)]" />}
-            <p className="text-sm font-medium text-subtle">{title}</p>
-        </div>
-    )
-}
-
-function ErrorBox({ message }: { message: string }) {
-    return (
-        <div className="mt-5 rounded-[24px] border border-red-500/20 bg-red-500/10 px-4 py-4 text-sm leading-7 text-red-400">
-            <div className="flex items-start gap-3">
-                <AlertCircle size={18} className="mt-1 shrink-0" />
+        <div className="animate-fade-in mt-3 rounded-lg border border-red-500/20 bg-red-500/5 px-3.5 py-3">
+            <div className="flex items-start gap-2 text-[13px] text-red-500 sm:text-xs">
+                <AlertCircle size={15} className="mt-0.5 shrink-0" />
                 <span>{message}</span>
             </div>
+            {onRetry && (
+                <button onClick={onRetry} className="mt-2.5 flex items-center gap-1.5 text-xs font-medium text-red-500 active:opacity-70" style={{ minHeight: 44 }}>
+                    <RotateCcw size={13} />
+                    Try again
+                </button>
+            )}
         </div>
     )
 }
 
 const mdComponents: Components = {
-    h2: ({ children }) => <h2 className="mt-6 border-b border-border pb-2 text-lg font-semibold text-foreground">{children}</h2>,
-    h3: ({ children }) => <h3 className="mt-4 text-base font-semibold text-foreground">{children}</h3>,
-    p: ({ children }) => <p className="mb-3 text-sm leading-7 text-subtle">{children}</p>,
-    ul: ({ children }) => <ul className="mb-4 space-y-2">{children}</ul>,
+    h2: ({ children }) => <h2 className="mt-4 border-b border-border pb-1 text-sm font-semibold text-foreground">{children}</h2>,
+    h3: ({ children }) => <h3 className="mt-3 text-sm font-semibold text-foreground">{children}</h3>,
+    p: ({ children }) => <p className="mb-2 text-[15px] leading-relaxed text-foreground-soft sm:text-sm">{children}</p>,
+    ul: ({ children }) => <ul className="mb-3 space-y-1">{children}</ul>,
     li: ({ children }) => (
-        <li className="flex items-start gap-2 text-sm text-subtle">
-            <span className="mt-2 h-1.5 w-1.5 rounded-full bg-primary" />
+        <li className="flex items-start gap-2 text-[15px] text-foreground-soft sm:text-sm">
+            <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-muted" />
             <span>{children}</span>
         </li>
     ),

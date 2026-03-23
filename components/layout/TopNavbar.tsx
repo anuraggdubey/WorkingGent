@@ -1,21 +1,12 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
-import { Bell, Github, Loader2, LogIn, LogOut, Menu, Sparkles, Unplug, UserCircle2, UserPlus } from "lucide-react"
+import { Activity, Github, Loader2, LogOut, Settings, Sparkles, Unplug, UserCircle2 } from "lucide-react"
 import { SignInButton, SignUpButton } from "@clerk/nextjs"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { useAuth } from "@/lib/AuthContext"
-
-const ROUTE_LABELS: Record<string, string> = {
-    "/dashboard": "Overview",
-    "/agents": "Workspace",
-    "/activity": "Activity",
-    "/analytics": "Analytics",
-    "/automation": "Automation",
-    "/settings": "Settings",
-}
 
 type PlatformStatus = {
     tools?: {
@@ -27,18 +18,12 @@ type PlatformStatus = {
     }
 }
 
-export default function TopNavbar({ onOpenCommand }: { onOpenCommand: () => void }) {
+export default function TopNavbar() {
     const { user, isAuthenticated, isHydrated, logout } = useAuth()
     const pathname = usePathname()
     const [platformStatus, setPlatformStatus] = useState<PlatformStatus | null>(null)
     const [githubBusy, setGithubBusy] = useState(false)
 
-    const profileLabel = useMemo(() => {
-        if (!user) return "Guest"
-        return user.name.split(" ")[0]
-    }, [user])
-
-    const currentLabel = ROUTE_LABELS[pathname] ?? "Workspace"
     const github = platformStatus?.tools?.github
 
     useEffect(() => {
@@ -50,134 +35,95 @@ export default function TopNavbar({ onOpenCommand }: { onOpenCommand: () => void
 
     const handleGitHubDisconnect = async () => {
         setGithubBusy(true)
-
         try {
             await fetch("/api/auth/github/callback", { method: "DELETE" })
             const res = await fetch("/api/platform-status")
             const data = await res.json()
             setPlatformStatus(data)
         } catch {
-            // Keep the last known state if the refresh fails.
+            // noop
         } finally {
             setGithubBusy(false)
         }
     }
 
     return (
-        <header className="fixed inset-x-0 top-0 z-50 px-4 pt-4 sm:px-6 lg:px-8 lg:pt-6">
-                <div className="mx-auto flex max-w-[1520px] items-center gap-3 rounded-[28px] border border-border bg-[color:var(--surface)] px-4 py-3 shadow-[var(--shadow-md)] backdrop-blur-xl sm:px-5 lg:px-6">
-                    <Link href="/dashboard" className="flex min-w-0 items-center gap-3">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[color:var(--primary-soft)] text-primary">
-                            <Sparkles size={18} />
-                        </div>
-                        <div className="hidden sm:block">
-                            <div className="text-sm font-semibold tracking-[-0.03em] text-foreground">WorkingGent</div>
-                            <div className="text-xs text-muted">{currentLabel} section</div>
-                        </div>
+        <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-surface px-4 sm:h-14 sm:px-6">
+            {/* Left */}
+            <div className="flex items-center gap-5">
+                <Link href="/agents" className="text-sm font-semibold tracking-tight text-foreground">
+                    WorkingGent
+                </Link>
+
+                {/* Desktop nav */}
+                <nav className="hidden items-center gap-1 sm:flex">
+                    <NavLink href="/agents" label="Workspace" icon={<Sparkles size={14} />} active={pathname === "/agents"} />
+                    <NavLink href="/activity" label="Activity" icon={<Activity size={14} />} active={pathname === "/activity"} />
+                    <NavLink href="/settings" label="Settings" icon={<Settings size={14} />} active={pathname === "/settings"} />
+                </nav>
+            </div>
+
+            {/* Right */}
+            <div className="flex items-center gap-1.5 sm:gap-2">
+                {/* GitHub (desktop only) */}
+                {github?.configured && github.connected ? (
+                    <div className="hidden items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-xs sm:flex">
+                        <Github size={13} className="text-muted" />
+                        <span className="text-foreground-soft">@{github.login ?? "connected"}</span>
+                        <button
+                            onClick={() => void handleGitHubDisconnect()}
+                            disabled={githubBusy}
+                            className="ml-1 text-muted hover:text-foreground"
+                            aria-label="Disconnect GitHub"
+                        >
+                            {githubBusy ? <Loader2 size={12} className="animate-spin" /> : <Unplug size={12} />}
+                        </button>
+                    </div>
+                ) : github?.configured && !github.connected ? (
+                    <Link href="/api/auth/github" className="hidden items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-foreground-soft hover:text-foreground sm:inline-flex">
+                        <Github size={13} />
+                        Connect
                     </Link>
+                ) : null}
 
-                    <div className="ml-auto flex flex-1 justify-center lg:px-6">
-                        <button onClick={onOpenCommand} className="button-secondary h-12 min-w-[148px] rounded-2xl px-4">
-                            <Menu size={16} />
-                            Menu
+                <ThemeToggle />
+
+                {!isHydrated ? (
+                    <div className="skeleton h-8 w-8 rounded-lg sm:w-24" />
+                ) : isAuthenticated && user ? (
+                    <div className="flex items-center gap-1.5">
+                        <span className="hidden text-xs text-foreground-soft md:inline">{user.name}</span>
+                        <button onClick={logout} className="flex h-9 w-9 items-center justify-center rounded-lg text-foreground-soft hover:bg-surface-elevated hover:text-foreground sm:h-8 sm:w-8" aria-label="Logout">
+                            <LogOut size={15} />
                         </button>
                     </div>
-
-                    <div className="flex items-center gap-2">
-                        {github?.configured ? (
-                            github.connected ? (
-                                <>
-                                    <div className="hidden items-center gap-2 rounded-2xl border border-border bg-background/76 px-3 py-2 lg:flex">
-                                        <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[color:var(--primary-soft)] text-primary">
-                                            <Github size={17} />
-                                        </div>
-                                        <div className="min-w-0">
-                                            <div className="text-sm font-semibold text-foreground">GitHub connected</div>
-                                            <div className="truncate text-xs text-muted">@{github.login ?? "account"}</div>
-                                        </div>
-                                        <button
-                                            onClick={() => void handleGitHubDisconnect()}
-                                            disabled={githubBusy}
-                                            className="button-ghost h-9 w-9 rounded-2xl p-0"
-                                            aria-label="Disconnect GitHub"
-                                        >
-                                            {githubBusy ? <Loader2 size={16} className="animate-spin" /> : <Unplug size={16} />}
-                                        </button>
-                                    </div>
-                                    <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[color:var(--primary-soft)] text-primary">
-                                        <Github size={17} />
-                                    </div>
-                                </>
-                            ) : (
-                                <>
-                                    <Link href="/api/auth/github" className="button-secondary hidden lg:inline-flex">
-                                        <Github size={15} />
-                                        Connect GitHub
-                                    </Link>
-                                    <Link
-                                        href="/api/auth/github"
-                                        className="flex h-11 w-11 items-center justify-center rounded-2xl border border-border bg-background/70 text-foreground lg:hidden"
-                                        aria-label="Connect GitHub"
-                                    >
-                                        <Github size={17} />
-                                    </Link>
-                                </>
-                            )
-                        ) : null}
-
-                        <ThemeToggle />
-
-                        <button className="button-ghost h-11 w-11 rounded-2xl border border-border bg-background/70 p-0">
-                            <Bell size={18} />
-                        </button>
-
-                        {!isHydrated ? (
-                            <div className="skeleton hidden h-11 w-40 md:block" />
-                        ) : isAuthenticated && user ? (
-                            <div className="hidden items-center gap-3 rounded-2xl border border-border bg-background/76 px-3 py-2 md:flex">
-                                <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[color:var(--primary-soft)] text-primary">
-                                    <UserCircle2 size={18} />
-                                </div>
-                                <div className="min-w-0">
-                                    <div className="truncate text-sm font-semibold text-foreground">{user.name}</div>
-                                    <div className="truncate text-xs text-muted">{user.email}</div>
-                                </div>
-                                <button onClick={logout} className="button-ghost h-9 w-9 rounded-2xl p-0">
-                                    <LogOut size={16} />
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="hidden items-center gap-2 md:flex">
-                                <SignInButton mode="modal">
-                                    <button className="button-secondary">
-                                        <LogIn size={15} />
-                                        Login
-                                    </button>
-                                </SignInButton>
-                                <SignUpButton mode="modal">
-                                    <button className="button-primary">
-                                        <UserPlus size={15} />
-                                        Register
-                                    </button>
-                                </SignUpButton>
-                            </div>
-                        )}
-
-                        {!isHydrated ? (
-                            <div className="skeleton h-11 w-11 md:hidden" />
-                        ) : isAuthenticated ? (
-                            <button onClick={logout} className="button-secondary h-11 w-11 rounded-2xl p-0 md:hidden">
-                                <span className="text-sm font-semibold">{profileLabel.slice(0, 1).toUpperCase()}</span>
-                            </button>
-                        ) : (
-                            <SignInButton mode="modal">
-                                <button className="button-secondary h-11 w-11 rounded-2xl p-0 md:hidden">
-                                    <LogIn size={16} />
-                                </button>
-                            </SignInButton>
-                        )}
+                ) : (
+                    <div className="flex items-center gap-1.5">
+                        <SignInButton mode="modal">
+                            <button className="button-ghost text-xs">Login</button>
+                        </SignInButton>
+                        <SignUpButton mode="modal">
+                            <button className="button-primary text-xs">Register</button>
+                        </SignUpButton>
                     </div>
-                </div>
-            </header>
+                )}
+            </div>
+        </header>
+    )
+}
+
+function NavLink({ href, label, icon, active }: { href: string; label: string; icon: React.ReactNode; active: boolean }) {
+    return (
+        <Link
+            href={href}
+            className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                active
+                    ? "bg-primary-soft text-foreground"
+                    : "text-foreground-soft hover:text-foreground"
+            }`}
+        >
+            {icon}
+            {label}
+        </Link>
     )
 }

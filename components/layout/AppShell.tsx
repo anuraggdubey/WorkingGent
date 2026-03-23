@@ -1,33 +1,51 @@
 "use client"
 
 import { usePathname } from "next/navigation"
-import { useState } from "react"
+import Link from "next/link"
+import { Activity, Settings, Sparkles } from "lucide-react"
 import TopNavbar from "@/components/layout/TopNavbar"
-import RouteRail from "@/components/layout/RouteRail"
-import MobileDock from "@/components/layout/MobileDock"
-import CommandPalette from "@/components/layout/CommandPalette"
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
-    const [commandOpen, setCommandOpen] = useState(false)
     const pathname = usePathname()
 
     if (pathname === "/") {
-        return <div className="min-h-screen bg-background text-foreground">{children}</div>
+        return <div className="min-h-screen min-h-dvh bg-background text-foreground">{children}</div>
     }
 
-    return (
-        <div className="min-h-screen bg-background text-foreground">
-            <TopNavbar onOpenCommand={() => setCommandOpen(true)} />
-            <div className="fixed inset-x-0 top-0 z-40 hidden lg:block">
-                <RouteRail />
-            </div>
+    /* Agents page: no wrapper padding — handled internally for 3-col layout */
+    const isAgentsPage = pathname === "/agents"
 
-            <main className="page-shell">
-                {children}
+    return (
+        <div className="flex h-screen h-dvh flex-col overflow-hidden bg-background text-foreground">
+            <TopNavbar />
+            <main className={`flex-1 overflow-y-auto ${isAgentsPage ? "" : "px-4 py-6 sm:px-6 lg:px-8"}`}>
+                {isAgentsPage ? children : (
+                    <div className="mx-auto w-full max-w-[1520px]">{children}</div>
+                )}
             </main>
 
-            <MobileDock />
-            <CommandPalette open={commandOpen} onClose={() => setCommandOpen(false)} />
+            {/* Mobile bottom nav — only on non-agent pages */}
+            {!isAgentsPage && (
+                <nav className="flex h-14 shrink-0 items-center justify-around border-t border-border bg-surface safe-bottom sm:hidden">
+                    <MobileNavItem href="/agents" icon={<Sparkles size={18} />} label="Workspace" active={pathname === "/agents"} />
+                    <MobileNavItem href="/activity" icon={<Activity size={18} />} label="Activity" active={pathname === "/activity"} />
+                    <MobileNavItem href="/settings" icon={<Settings size={18} />} label="Settings" active={pathname === "/settings"} />
+                </nav>
+            )}
         </div>
+    )
+}
+
+function MobileNavItem({ href, icon, label, active }: { href: string; icon: React.ReactNode; label: string; active: boolean }) {
+    return (
+        <Link
+            href={href}
+            className={`flex min-h-[44px] min-w-[44px] flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors ${
+                active ? "text-primary" : "text-muted"
+            }`}
+        >
+            {icon}
+            {label}
+        </Link>
     )
 }

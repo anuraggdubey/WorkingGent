@@ -160,8 +160,9 @@ function invalidPlanStep(line: string) {
 
 async function executePlan(actions: BrowserAction[]) {
     const browser = await puppeteer.launch({
-        headless: true,
-        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+        headless: false,
+        args: ["--no-sandbox", "--disable-setuid-sandbox", "--start-maximized"],
+        defaultViewport: { width: 1280, height: 800 },
     })
 
     const page = await browser.newPage()
@@ -395,38 +396,74 @@ async function extractText(page: Page, selector: string) {
     const selectors = buildSelectorCandidates(page.url(), selector)
 
     for (const candidate of selectors) {
-        const content = await page.$$eval(candidate, (nodes) =>
-            nodes
-                .map((node) => (node.textContent ?? "").trim())
-                .filter(Boolean)
-                .join("\n")
-        ).catch(() => "")
+        const content = await page.$$eval(candidate, (nodes) => {
+            const skipTags = new Set(["NAV", "FOOTER", "HEADER", "ASIDE", "SCRIPT", "STYLE", "NOSCRIPT", "IFRAME", "SVG"])
+            const junk = new Set(["see more", "read more", "previous", "next", "loading", "advertisement", "subscribe", "sign in", "sign up", "log in", "menu", "close", "share", "copy", "copied"])
 
-        if (content.trim()) {
-            return { text: content, selectorUsed: candidate, usedFallback: false }
+            return nodes
+                .filter((node) => {
+                    let el: Element | null = node
+                    while (el) {
+                        if (skipTags.has(el.tagName)) return false
+                        el = el.parentElement
+                    }
+                    return true
+                })
+                .map((node) => (node.textContent ?? "").replace(/\s+/g, " ").trim())
+                .filter((t) => t.length >= 10 && !junk.has(t.toLowerCase()))
+                .join("\n")
+        }).catch(() => "")
+
+        const cleaned = deduplicateLines(content)
+        if (cleaned.trim()) {
+            return { text: cleaned, selectorUsed: candidate, usedFallback: false }
         }
     }
 
     const fallbackText = await page.evaluate(() => {
+        const skipTags = new Set(["NAV", "FOOTER", "HEADER", "ASIDE", "SCRIPT", "STYLE", "NOSCRIPT"])
+        const junk = new Set(["see more", "read more", "previous", "next", "loading", "advertisement", "subscribe", "sign in", "sign up", "log in", "menu", "close", "share", "copy"])
+
         const nodes = Array.from(
-            document.querySelectorAll("main h1, main h2, main h3, article h1, article h2, article h3, h1, h2, h3, .titleline > a, a")
+            document.querySelectorAll("main h1, main h2, main h3, main p, article h1, article h2, article h3, article p, h1, h2, h3, p")
         )
 
         const seen = new Set<string>()
         const lines: string[] = []
 
         for (const node of nodes) {
+            let skip = false
+            let el: Element | null = node
+            while (el) {
+                if (skipTags.has(el.tagName)) { skip = true; break }
+                el = el.parentElement
+            }
+            if (skip) continue
+
             const text = (node.textContent ?? "").replace(/\s+/g, " ").trim()
-            if (!text || text.length < 3 || seen.has(text)) continue
+            if (!text || text.length < 10 || seen.has(text) || junk.has(text.toLowerCase())) continue
             seen.add(text)
             lines.push(text)
-            if (lines.length >= 20) break
+            if (lines.length >= 15) break
         }
 
         return lines.join("\n")
     })
 
     return { text: fallbackText, selectorUsed: selectors[0] ?? sanitizeSelector(selector), usedFallback: true }
+}
+
+function deduplicateLines(text: string) {
+    const seen = new Set<string>()
+    return text
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => {
+            if (!l || seen.has(l)) return false
+            seen.add(l)
+            return true
+        })
+        .join("\n")
 }
 
 function normalizeBrowserError(error: unknown) {
