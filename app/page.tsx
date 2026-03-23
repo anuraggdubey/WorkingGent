@@ -4,6 +4,7 @@ import Link from "next/link"
 import { ArrowRight, Code2, Chrome, FileText, Github, Globe, Mail } from "lucide-react"
 import { SignInButton, SignUpButton } from "@clerk/nextjs"
 import { useAuth } from "@/lib/AuthContext"
+import { useHasMounted } from "@/lib/useHasMounted"
 
 const AGENTS = [
     { label: "Coding", icon: Code2 },
@@ -15,7 +16,8 @@ const AGENTS = [
 ]
 
 export default function Home() {
-    const { isAuthenticated, isHydrated } = useAuth()
+    const { isAuthenticated } = useAuth()
+    const mounted = useHasMounted()
 
     return (
         <div className="flex min-h-screen min-h-dvh flex-col">
@@ -25,7 +27,9 @@ export default function Home() {
                     WorkingGent
                 </Link>
                 <div className="flex items-center gap-2">
-                    {!isHydrated ? null : !isAuthenticated ? (
+                    {!mounted ? (
+                        <div className="h-9 w-20" />
+                    ) : !isAuthenticated ? (
                         <>
                             <SignInButton mode="modal">
                                 <button className="px-3 py-2 text-sm text-foreground-soft hover:text-foreground" style={{ minHeight: 44 }}>Login</button>
@@ -54,7 +58,9 @@ export default function Home() {
                     </p>
 
                     <div className="mt-8 flex justify-center gap-3">
-                        {!isHydrated ? null : !isAuthenticated ? (
+                        {!mounted ? (
+                            <div className="h-11 w-32" />
+                        ) : !isAuthenticated ? (
                             <>
                                 <SignUpButton mode="modal">
                                     <button className="button-primary">
