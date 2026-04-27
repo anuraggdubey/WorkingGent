@@ -4,7 +4,6 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
 import { Activity, Github, Loader2, LogOut, Settings, Sparkles, Unplug } from "lucide-react"
-import { SignInButton, SignUpButton } from "@clerk/nextjs"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { useAuth } from "@/lib/AuthContext"
 import { useHasMounted } from "@/lib/useHasMounted"
@@ -102,12 +101,8 @@ export default function TopNavbar() {
                     </div>
                 ) : (
                     <div className="flex items-center gap-1.5">
-                        <SignInButton mode="modal">
-                            <button className="button-ghost text-xs">Login</button>
-                        </SignInButton>
-                        <SignUpButton mode="modal">
-                            <button className="button-primary text-xs">Register</button>
-                        </SignUpButton>
+                        <Link href="/sign-in" className="button-ghost text-xs">Login</Link>
+                        <Link href="/sign-up" className="button-primary text-xs">Register</Link>
                     </div>
                 )}
             </div>

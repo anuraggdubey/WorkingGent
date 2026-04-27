@@ -2,7 +2,6 @@
 
 import Link from "next/link"
 import { ArrowRight, Code2, Chrome, FileText, Github, Globe, Mail } from "lucide-react"
-import { SignInButton, SignUpButton } from "@clerk/nextjs"
 import { useAuth } from "@/lib/AuthContext"
 import { useHasMounted } from "@/lib/useHasMounted"
 
@@ -31,12 +30,12 @@ export default function Home() {
                         <div className="h-9 w-20" />
                     ) : !isAuthenticated ? (
                         <>
-                            <SignInButton mode="modal">
-                                <button className="px-3 py-2 text-sm text-foreground-soft hover:text-foreground" style={{ minHeight: 44 }}>Login</button>
-                            </SignInButton>
-                            <SignUpButton mode="modal">
-                                <button className="button-primary text-sm">Register</button>
-                            </SignUpButton>
+                            <Link href="/sign-in" className="px-3 py-2 text-sm text-foreground-soft hover:text-foreground" style={{ minHeight: 44 }}>
+                                Login
+                            </Link>
+                            <Link href="/sign-up" className="button-primary text-sm">
+                                Register
+                            </Link>
                         </>
                     ) : (
                         <Link href="/agents" className="button-primary text-sm">
@@ -62,15 +61,11 @@ export default function Home() {
                             <div className="h-11 w-32" />
                         ) : !isAuthenticated ? (
                             <>
-                                <SignUpButton mode="modal">
-                                    <button className="button-primary">
-                                        Get Started
-                                        <ArrowRight size={14} />
-                                    </button>
-                                </SignUpButton>
-                                <SignInButton mode="modal">
-                                    <button className="button-secondary">Login</button>
-                                </SignInButton>
+                                <Link href="/sign-up" className="button-primary">
+                                    Get Started
+                                    <ArrowRight size={14} />
+                                </Link>
+                                <Link href="/sign-in" className="button-secondary">Login</Link>
                             </>
                         ) : (
                             <Link href="/agents" className="button-primary">

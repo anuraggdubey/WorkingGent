@@ -39,6 +39,22 @@ export async function completeWithOpenRouter(options: {
     maxTokens?: number
     temperature?: number
 }) {
+    return completeWithOpenRouterMessages({
+        system: options.system,
+        user: options.user,
+        model: options.model,
+        maxTokens: options.maxTokens,
+        temperature: options.temperature,
+    })
+}
+
+export async function completeWithOpenRouterMessages(options: {
+    system: string
+    user: string | Array<OpenAI.Chat.Completions.ChatCompletionContentPart>
+    model?: string
+    maxTokens?: number
+    temperature?: number
+}) {
     const client = getOpenRouterClient()
     const models = options.model ? [options.model] : FALLBACK_MODELS
     let lastError: unknown

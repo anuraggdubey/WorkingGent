@@ -11,6 +11,7 @@ BODY:
 <email body>`
 
 export async function generateEmailDraft(input: {
+    senderEmail?: string
     recipientEmail: string
     subject?: string
     context: string
@@ -18,6 +19,7 @@ export async function generateEmailDraft(input: {
     const raw = await completeWithOpenRouter({
         system: EMAIL_SYSTEM_PROMPT,
         user: [
+            input.senderEmail ? `Sender: ${input.senderEmail}` : "Sender: not provided",
             `Recipient: ${input.recipientEmail}`,
             input.subject ? `Requested subject: ${input.subject}` : "Requested subject: generate one",
             `Context: ${input.context}`,
@@ -52,6 +54,7 @@ export async function sendDraftedEmail(input: {
     to: string
     subject: string
     body: string
+    replyTo?: string
 }) {
     if (!input.approved) {
         throw new AgentExecutionError(
@@ -66,6 +69,7 @@ export async function sendDraftedEmail(input: {
             to: input.to,
             subject: input.subject,
             body: input.body,
+            replyTo: input.replyTo,
         })
     } catch (error) {
         throw createToolError("emailTool", error, "Unable to send email")

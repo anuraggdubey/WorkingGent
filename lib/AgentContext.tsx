@@ -106,7 +106,7 @@ const PLATFORM_AGENTS: Agent[] = [
     {
         id: "document",
         name: "Document Agent",
-        task: "Uploads documents, parses supported files on the backend, and returns clean analysis.",
+        task: "Analyzes uploaded files or generates editable TXT, JSON, Excel, PDF, and DOCX documents from prompts.",
         reward: 3,
         earnings: 0,
         tasksCompleted: 0,

@@ -55,10 +55,14 @@ export async function executeTask(task: string) {
 
     if (classification.action === "file_tool") {
         const result = await runCodingAgent(task)
+        const previewDetail = result.preview
+            ? ` and prepared preview at ${result.preview.previewUrl}`
+            : ""
+
         return {
             status: "completed",
             mode: classification.action,
-            result: `Created ${result.projectId} and prepared preview at ${result.preview.previewUrl}`,
+            result: `Created ${result.projectId}${previewDetail}`,
         }
     }
 

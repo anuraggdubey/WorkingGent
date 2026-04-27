@@ -39,7 +39,7 @@ The GitHub Agent connects to GitHub, works with real repositories, and helps use
 
 ### Document Agent
 
-The Document Agent analyzes uploaded files such as PDFs, spreadsheets, CSVs, JSON, and text documents. It helps turn raw files into summaries, observations, and direct answers.
+The Document Agent analyzes uploaded files such as PDFs, spreadsheets, CSVs, JSON, and text documents. It also supports prompt-to-document generation, letting users create editable TXT, JSON, Excel, PDF, and DOCX outputs from natural-language instructions, preview them, refine them, and download the final file.
 
 ### Browser Automation Agent
 

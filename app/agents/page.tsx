@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import {
     AtSign,
@@ -17,6 +17,7 @@ import {
     Eye,
     ExternalLink,
     FileCode,
+    FileSpreadsheet,
     FileText,
     FileType,
     Github,
@@ -33,11 +34,12 @@ import {
     Search,
     Send,
     Upload,
-    X,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import type { Components } from "react-markdown"
 import { useAgentContext } from "@/lib/AgentContext"
+import { useAuth } from "@/lib/AuthContext"
+import type { GeneratedDocumentFormat, GeneratedDocumentPayload } from "@/types/document"
 
 const GitHubAgent = dynamic(() => import("@/components/agents/GitHubAgent"), {
     ssr: false,
@@ -49,6 +51,116 @@ const GitHubAgent = dynamic(() => import("@/components/agents/GitHubAgent"), {
         </div>
     ),
 })
+
+/* ── Format Dropdown ── */
+const FORMAT_OPTIONS: { value: GeneratedDocumentFormat; label: string; icon: React.ElementType; color: string; desc: string }[] = [
+    { value: "pdf",  label: "PDF",   icon: FileText,        color: "#ef4444", desc: "Portable Document" },
+    { value: "docx", label: "DOCX",  icon: FileCode,        color: "#3b82f6", desc: "Word Document" },
+    { value: "xlsx", label: "Excel", icon: FileSpreadsheet,  color: "#10b981", desc: "Spreadsheet" },
+    { value: "json", label: "JSON",  icon: Braces,           color: "#f59e0b", desc: "Structured Data" },
+    { value: "txt",  label: "TXT",   icon: FileType,         color: "#8b5cf6", desc: "Plain Text" },
+]
+
+function FormatDropdown({
+    value,
+    onChange,
+    disabled,
+}: {
+    value: GeneratedDocumentFormat
+    onChange: (v: GeneratedDocumentFormat) => void
+    disabled?: boolean
+}) {
+    const [open, setOpen] = useState(false)
+    const ref = useRef<HTMLDivElement>(null)
+    const current = FORMAT_OPTIONS.find((o) => o.value === value) ?? FORMAT_OPTIONS[0]
+    const CurrentIcon = current.icon
+
+    const close = useCallback(() => setOpen(false), [])
+
+    useEffect(() => {
+        if (!open) return
+        const handler = (e: MouseEvent) => {
+            if (ref.current && !ref.current.contains(e.target as Node)) close()
+        }
+        document.addEventListener("mousedown", handler)
+        return () => document.removeEventListener("mousedown", handler)
+    }, [open, close])
+
+    useEffect(() => {
+        if (!open) return
+        const handler = (e: KeyboardEvent) => { if (e.key === "Escape") close() }
+        document.addEventListener("keydown", handler)
+        return () => document.removeEventListener("keydown", handler)
+    }, [open, close])
+
+    return (
+        <div ref={ref} className="relative">
+            <button
+                type="button"
+                onClick={() => !disabled && setOpen((p) => !p)}
+                disabled={disabled}
+                className={`input-shell flex w-full items-center gap-2.5 px-3 py-3 transition-all duration-200 ${
+                    disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:border-[color:var(--border-strong)]"
+                } ${open ? "border-[color:var(--primary)] shadow-[0_0_0_2px_var(--ring)]" : ""}`}
+                style={{ minHeight: 44 }}
+            >
+                <span
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
+                    style={{ backgroundColor: `${current.color}14` }}
+                >
+                    <CurrentIcon size={14} style={{ color: current.color }} />
+                </span>
+                <div className="min-w-0 flex-1 text-left">
+                    <div className="text-sm font-medium text-foreground">{current.label}</div>
+                    <div className="text-[11px] text-muted">{current.desc}</div>
+                </div>
+                <ChevronDown
+                    size={14}
+                    className={`shrink-0 text-muted transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+                />
+            </button>
+
+            {open && (
+                <div
+                    className="absolute left-0 right-0 z-30 mt-1.5 overflow-hidden rounded-xl border border-border bg-surface shadow-lg"
+                    style={{ animation: "formatDropIn 180ms ease-out both" }}
+                >
+                    {FORMAT_OPTIONS.map((opt) => {
+                        const Icon = opt.icon
+                        const isActive = opt.value === value
+                        return (
+                            <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => { onChange(opt.value); close() }}
+                                className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors duration-150 ${
+                                    isActive
+                                        ? "bg-primary-soft"
+                                        : "hover:bg-[color:var(--surface-elevated)]"
+                                }`}
+                                style={{ minHeight: 44 }}
+                            >
+                                <span
+                                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
+                                    style={{ backgroundColor: `${opt.color}14` }}
+                                >
+                                    <Icon size={14} style={{ color: opt.color }} />
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                    <div className={`text-sm font-medium ${isActive ? "text-primary" : "text-foreground"}`}>{opt.label}</div>
+                                    <div className="text-[11px] text-muted">{opt.desc}</div>
+                                </div>
+                                {isActive && (
+                                    <Check size={14} className="shrink-0 text-primary" />
+                                )}
+                            </button>
+                        )
+                    })}
+                </div>
+            )}
+        </div>
+    )
+}
 
 type AgentId = "coding" | "websearch" | "email" | "github" | "document" | "browser"
 type RunState = "idle" | "running" | "done" | "error"
@@ -90,6 +202,8 @@ type DocumentResult = {
     truncated: boolean
 }
 
+type DocumentMode = "analyze" | "generate"
+
 type BrowserAutomationResult = {
     steps: string[]
     expectedResult: string
@@ -124,14 +238,14 @@ const AGENTS: AgentDef[] = [
         id: "github",
         label: "GitHub",
         icon: Github,
-        description: "Connect a GitHub account, select a repository, then analyze real code.",
+        description: "Analyze any repo with a Personal Access Token, or connect your GitHub account to browse your own repos.",
         placeholder: "Review the auth architecture and suggest the fastest fixes.",
     },
     {
         id: "document",
         label: "Document",
         icon: FileText,
-        description: "Upload PDFs, spreadsheets, CSVs, JSON, or text files and get summaries, insights, and answers.",
+        description: "Analyze uploaded files or generate TXT, JSON, Excel, PDF, and DOCX documents from a natural-language prompt.",
         placeholder: "Ask a question about the uploaded file.",
     },
     {
@@ -171,6 +285,13 @@ const DOCUMENT_STEPS: Omit<AgentStep, "status">[] = [
     { step: 2, title: "Parse content", detail: "Extract text or structured rows through backend parsers." },
     { step: 3, title: "Normalize data", detail: "Convert the document into clean structured analysis context." },
     { step: 4, title: "Analyze content", detail: "Send only processed content to the model for insights." },
+]
+
+const DOCUMENT_GENERATION_STEPS: Omit<AgentStep, "status">[] = [
+    { step: 1, title: "Read request", detail: "Understand the prompt, target format, and any attached images." },
+    { step: 2, title: "Generate structure", detail: "Create text, JSON, or tabular content suitable for preview." },
+    { step: 3, title: "Prepare editor", detail: "Shape the response into an editable preview surface." },
+    { step: 4, title: "Ready to export", detail: "Enable download in TXT, JSON, Excel, PDF, or DOCX." },
 ]
 
 const BROWSER_STEPS: Omit<AgentStep, "status">[] = [
@@ -275,6 +396,7 @@ function Collapsible({
 
 export default function AgentsPage() {
     const { startAgentRun, completeAgentRun, failAgentRun, logAgentEvent } = useAgentContext()
+    const { user } = useAuth()
     const [selectedAgent, setSelectedAgent] = useState<AgentDef>(AGENTS[0])
     const [runState, setRunState] = useState<RunState>("idle")
     const [error, setError] = useState<string | null>(null)
@@ -289,15 +411,29 @@ export default function AgentsPage() {
     const [activeTab, setActiveTab] = useState<"html" | "css" | "js" | "preview">("preview")
     const [copied, setCopied] = useState<string | null>(null)
     const [searchResult, setSearchResult] = useState<SearchResult | null>(null)
+    const [emailFrom, setEmailFrom] = useState("")
     const [emailTo, setEmailTo] = useState("")
     const [emailSubject, setEmailSubject] = useState("")
     const [emailContext, setEmailContext] = useState("")
     const [generatedEmail, setGeneratedEmail] = useState<GeneratedEmail | null>(null)
     const [emailSendState, setEmailSendState] = useState<EmailSendState>("idle")
     const [emailSentMsg, setEmailSentMsg] = useState("")
+    const [documentMode, setDocumentMode] = useState<DocumentMode>("analyze")
     const [documentFile, setDocumentFile] = useState<File | null>(null)
     const [documentQuestion, setDocumentQuestion] = useState("")
     const [documentResult, setDocumentResult] = useState<DocumentResult | null>(null)
+    const [documentPrompt, setDocumentPrompt] = useState("")
+    const [documentImages, setDocumentImages] = useState<File[]>([])
+    const [documentImageInstruction, setDocumentImageInstruction] = useState("")
+    const [documentFormat, setDocumentFormat] = useState<GeneratedDocumentFormat>("pdf")
+    const [generatedDocument, setGeneratedDocument] = useState<GeneratedDocumentPayload | null>(null)
+    const [documentTitle, setDocumentTitle] = useState("")
+    const [documentFileName, setDocumentFileName] = useState("")
+    const [documentTextDraft, setDocumentTextDraft] = useState("")
+    const [documentJsonDraft, setDocumentJsonDraft] = useState("")
+    const [documentTableColumns, setDocumentTableColumns] = useState<string[]>([])
+    const [documentTableRows, setDocumentTableRows] = useState<Array<Record<string, string | number | boolean | null>>>([])
+    const [documentDownloadState, setDocumentDownloadState] = useState<"idle" | "downloading">("idle")
     const [browserResult, setBrowserResult] = useState<BrowserAutomationResult | null>(null)
     const [singleFile, setSingleFile] = useState<{ code: string; filename: string; language: string } | null>(null)
 
@@ -312,9 +448,22 @@ export default function AgentsPage() {
         setGeneratedEmail(null)
         setEmailSendState("idle")
         setEmailSentMsg("")
+        setDocumentMode("analyze")
         setDocumentFile(null)
         setDocumentQuestion("")
         setDocumentResult(null)
+        setDocumentPrompt("")
+        setDocumentImages([])
+        setDocumentImageInstruction("")
+        setDocumentFormat("pdf")
+        setGeneratedDocument(null)
+        setDocumentTitle("")
+        setDocumentFileName("")
+        setDocumentTextDraft("")
+        setDocumentJsonDraft("")
+        setDocumentTableColumns([])
+        setDocumentTableRows([])
+        setDocumentDownloadState("idle")
         setBrowserResult(null)
         setSteps([])
         setRightPanelOpen(false)
@@ -333,7 +482,8 @@ export default function AgentsPage() {
         if (selectedAgent.id === "coding" && prompt.trim()) await runCodingAgent()
         if (selectedAgent.id === "websearch" && prompt.trim()) await runWebSearchAgent()
         if (selectedAgent.id === "email" && emailTo.trim() && emailContext.trim()) await runEmailAgent()
-        if (selectedAgent.id === "document" && documentFile) await runDocumentAgent()
+        if (selectedAgent.id === "document" && documentMode === "analyze" && documentFile) await runDocumentAgent()
+        if (selectedAgent.id === "document" && documentMode === "generate" && (documentPrompt.trim() || documentImages.length > 0 || documentImageInstruction.trim())) await runDocumentGenerationAgent()
         if (selectedAgent.id === "browser" && prompt.trim()) await runBrowserAgent()
     }
 
@@ -447,7 +597,12 @@ export default function AgentsPage() {
             const response = await fetch("/api/generate-email", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ recipientEmail: emailTo, subject: emailSubject, context: emailContext }),
+                body: JSON.stringify({
+                    senderEmail: emailFrom.trim() || user?.email || "",
+                    recipientEmail: emailTo,
+                    subject: emailSubject,
+                    context: emailContext,
+                }),
             })
             const data = await response.json()
             if (!response.ok) throw new Error(data.error ?? "Email generation failed")
@@ -480,6 +635,7 @@ export default function AgentsPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     to: emailTo,
+                    replyTo: emailFrom.trim() || user?.email || undefined,
                     subject: generatedEmail.subject,
                     htmlBody: generatedEmail.body,
                     textBody: generatedEmail.body,
@@ -489,8 +645,8 @@ export default function AgentsPage() {
             const data = await response.json()
             if (!response.ok) throw new Error(data.error ?? "Send failed")
             setEmailSendState("sent")
-            setEmailSentMsg(data.message ?? `Email sent to ${emailTo}.`)
-            logAgentEvent("email", `Sent approved email to ${emailTo}.`, {
+            setEmailSentMsg(data.message ?? `Email sent via WorkingGent to ${emailTo}.`)
+            logAgentEvent("email", `Sent approved email via WorkingGent to ${emailTo}.`, {
                 status: "success",
                 type: "execution",
                 reward: 1,
@@ -505,12 +661,24 @@ export default function AgentsPage() {
         }
     }
 
+    const openInGmail = () => {
+        if (!generatedEmail) return
+        const gmailUrl = new URL("https://mail.google.com/mail/")
+        gmailUrl.searchParams.set("view", "cm")
+        gmailUrl.searchParams.set("fs", "1")
+        gmailUrl.searchParams.set("to", emailTo)
+        gmailUrl.searchParams.set("su", generatedEmail.subject)
+        gmailUrl.searchParams.set("body", generatedEmail.body)
+        window.open(gmailUrl.toString(), "_blank", "noopener,noreferrer")
+    }
+
     const runDocumentAgent = async () => {
         if (!documentFile) return
 
         setRunState("running")
         setError(null)
         setDocumentResult(null)
+        setGeneratedDocument(null)
         setSteps(initSteps(DOCUMENT_STEPS))
         startAgentRun("document", `Analyzing ${documentFile.name}`)
 
@@ -550,6 +718,108 @@ export default function AgentsPage() {
             failAgentRun("document", getErrorMessage(err, "Document analysis failed"))
             setError(getErrorMessage(err, "Document analysis failed"))
             setRunState("error")
+        }
+    }
+
+    const runDocumentGenerationAgent = async () => {
+        setRunState("running")
+        setError(null)
+        setDocumentResult(null)
+        setGeneratedDocument(null)
+        setDocumentDownloadState("idle")
+        setSteps(initSteps(DOCUMENT_GENERATION_STEPS))
+        startAgentRun(
+            "document",
+            documentImages.length > 0
+                ? `Generating ${documentFormat.toUpperCase()} document from prompt and image data`
+                : `Generating ${documentFormat.toUpperCase()} document from prompt`
+        )
+
+        setStepStatus(0, "running")
+        await delay(260)
+        setStepStatus(0, "done")
+        setStepStatus(1, "running")
+
+        try {
+            const formData = new FormData()
+            formData.append("prompt", documentPrompt)
+            formData.append("format", documentFormat)
+            formData.append("imageInstruction", documentImageInstruction)
+            documentImages.forEach((image) => formData.append("images", image))
+
+            const response = await fetch("/api/generate-document", {
+                method: "POST",
+                body: formData,
+            })
+            const data = await response.json()
+            if (!response.ok) throw new Error(data.error ?? "Document generation failed")
+
+            setStepStatus(1, "done")
+            setStepStatus(2, "running")
+            await delay(220)
+            setStepStatus(2, "done")
+            setStepStatus(3, "running")
+            await delay(180)
+            setStepStatus(3, "done")
+
+            setGeneratedDocument(data)
+            setDocumentTitle(data.title ?? "Generated Document")
+            setDocumentFileName(data.suggestedFileName ?? "generated-document")
+            setDocumentTextDraft(data.textContent ?? "")
+            setDocumentJsonDraft(data.jsonContent ? JSON.stringify(data.jsonContent, null, 2) : "")
+            setDocumentTableColumns(Array.isArray(data.tableColumns) ? data.tableColumns : [])
+            setDocumentTableRows(Array.isArray(data.tableRows) ? data.tableRows : [])
+            setRunState("done")
+            completeAgentRun("document", `Generated ${documentFormat.toUpperCase()} document preview.`, 4)
+        } catch (err: unknown) {
+            failAgentRun("document", getErrorMessage(err, "Document generation failed"))
+            setError(getErrorMessage(err, "Document generation failed"))
+            setRunState("error")
+        }
+    }
+
+    const downloadGeneratedDocument = async () => {
+        if (!generatedDocument || documentDownloadState === "downloading") return
+
+        setDocumentDownloadState("downloading")
+        try {
+            const parsedJson = documentJsonDraft.trim() ? JSON.parse(documentJsonDraft) : generatedDocument.jsonContent
+            const response = await fetch("/api/export-document", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    format: documentFormat,
+                    fileName: documentFileName || generatedDocument.suggestedFileName,
+                    title: documentTitle || generatedDocument.title,
+                    textContent: documentTextDraft,
+                    jsonContent: parsedJson,
+                    tableColumns: documentTableColumns,
+                    tableRows: documentTableRows,
+                }),
+            })
+
+            if (!response.ok) {
+                const data = await response.json().catch(() => null)
+                throw new Error(data?.error ?? "Document export failed")
+            }
+
+            const blob = await response.blob()
+            const url = window.URL.createObjectURL(blob)
+            const link = document.createElement("a")
+            const fallbackName = `${documentFileName || generatedDocument.suggestedFileName}.${documentFormat}`
+            const disposition = response.headers.get("Content-Disposition")
+            const matchedName = disposition?.match(/filename="([^"]+)"/)?.[1]
+            link.href = url
+            link.download = matchedName || fallbackName
+            document.body.appendChild(link)
+            link.click()
+            link.remove()
+            window.URL.revokeObjectURL(url)
+        } catch (err: unknown) {
+            setError(getErrorMessage(err, "Document export failed"))
+            setRunState("error")
+        } finally {
+            setDocumentDownloadState("idle")
         }
     }
 
@@ -599,7 +869,9 @@ export default function AgentsPage() {
     }
 
     const canRunEmail = emailTo.trim() && emailContext.trim()
-    const canRunDocument = Boolean(documentFile)
+    const canRunDocument = documentMode === "analyze"
+        ? Boolean(documentFile)
+        : Boolean(documentPrompt.trim() || documentImages.length > 0 || documentImageInstruction.trim())
     const canRun =
         selectedAgent.id === "email"
             ? canRunEmail
@@ -671,6 +943,17 @@ export default function AgentsPage() {
                             <div className="space-y-3">
                                 <div className="flex flex-col gap-3 sm:flex-row">
                                     <div className="input-shell flex flex-1 items-center gap-2 px-3 py-3">
+                                        <Mail size={14} className="shrink-0 text-muted" />
+                                        <input
+                                            type="email"
+                                            value={emailFrom}
+                                            onChange={(e) => setEmailFrom(e.target.value)}
+                                            placeholder={user?.email || "sender@example.com"}
+                                            disabled={runState === "running"}
+                                            className="w-full bg-transparent text-[15px] text-foreground placeholder:text-muted sm:text-sm"
+                                        />
+                                    </div>
+                                    <div className="input-shell flex flex-1 items-center gap-2 px-3 py-3">
                                         <AtSign size={14} className="shrink-0 text-muted" />
                                         <input
                                             type="email"
@@ -681,6 +964,8 @@ export default function AgentsPage() {
                                             className="w-full bg-transparent text-[15px] text-foreground placeholder:text-muted sm:text-sm"
                                         />
                                     </div>
+                                </div>
+                                <div className="flex flex-col gap-3 sm:flex-row">
                                     <div className="input-shell flex flex-1 items-center px-3 py-3">
                                         <input
                                             value={emailSubject}
@@ -707,36 +992,123 @@ export default function AgentsPage() {
                             </div>
                         ) : selectedAgent.id === "document" ? (
                             <div className="space-y-3">
-                                <label className="input-shell flex cursor-pointer items-center gap-3 px-3.5 py-3.5">
-                                    <Upload size={18} className="shrink-0 text-muted" />
-                                    <div className="min-w-0 flex-1">
-                                        <div className="text-[15px] text-foreground sm:text-sm">
-                                            {documentFile ? documentFile.name : "Upload a document"}
-                                        </div>
-                                        {!documentFile && (
-                                            <div className="text-xs text-muted">PDF, Excel, CSV, JSON, TXT</div>
-                                        )}
-                                    </div>
-                                    <input
-                                        type="file"
-                                        accept=".pdf,.xlsx,.xls,.csv,.json,.txt"
-                                        onChange={(e) => setDocumentFile(e.target.files?.[0] ?? null)}
+                                <div className="inline-flex rounded-lg border border-border bg-surface p-1">
+                                    <button
+                                        onClick={() => setDocumentMode("analyze")}
                                         disabled={runState === "running"}
-                                        className="hidden"
-                                    />
-                                </label>
-                                <div className="flex gap-3">
-                                    <div className="input-shell flex flex-1 items-center px-3 py-3">
-                                        <input
-                                            value={documentQuestion}
-                                            onChange={(e) => setDocumentQuestion(e.target.value)}
-                                            placeholder={selectedAgent.placeholder}
-                                            disabled={runState === "running"}
-                                            className="w-full bg-transparent text-[15px] text-foreground placeholder:text-muted sm:text-sm"
-                                        />
-                                    </div>
-                                    <RunButton runState={runState} canRun={!!canRunDocument} onClick={runAgent} agent="document" />
+                                        className={`rounded-md px-3 py-2 text-xs font-medium transition-colors ${
+                                            documentMode === "analyze" ? "bg-primary-soft text-foreground" : "text-muted hover:text-foreground"
+                                        }`}
+                                    >
+                                        Analyze File
+                                    </button>
+                                    <button
+                                        onClick={() => setDocumentMode("generate")}
+                                        disabled={runState === "running"}
+                                        className={`rounded-md px-3 py-2 text-xs font-medium transition-colors ${
+                                            documentMode === "generate" ? "bg-primary-soft text-foreground" : "text-muted hover:text-foreground"
+                                        }`}
+                                    >
+                                        Generate Document
+                                    </button>
                                 </div>
+                                {documentMode === "analyze" ? (
+                                    <>
+                                        <label className="input-shell flex cursor-pointer items-center gap-3 px-3.5 py-3.5">
+                                            <Upload size={18} className="shrink-0 text-muted" />
+                                            <div className="min-w-0 flex-1">
+                                                <div className="text-[15px] text-foreground sm:text-sm">
+                                                    {documentFile ? documentFile.name : "Upload a document"}
+                                                </div>
+                                                {!documentFile && (
+                                                    <div className="text-xs text-muted">PDF, Excel, CSV, JSON, TXT</div>
+                                                )}
+                                            </div>
+                                            <input
+                                                type="file"
+                                                accept=".pdf,.xlsx,.xls,.csv,.json,.txt"
+                                                onChange={(e) => setDocumentFile(e.target.files?.[0] ?? null)}
+                                                disabled={runState === "running"}
+                                                className="hidden"
+                                            />
+                                        </label>
+                                        <div className="flex gap-3">
+                                            <div className="input-shell flex flex-1 items-center px-3 py-3">
+                                                <input
+                                                    value={documentQuestion}
+                                                    onChange={(e) => setDocumentQuestion(e.target.value)}
+                                                    placeholder={selectedAgent.placeholder}
+                                                    disabled={runState === "running"}
+                                                    className="w-full bg-transparent text-[15px] text-foreground placeholder:text-muted sm:text-sm"
+                                                />
+                                            </div>
+                                            <RunButton runState={runState} canRun={!!canRunDocument} onClick={runAgent} agent="document" mode={documentMode} />
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="flex flex-col gap-3 sm:flex-row">
+                                            <div className="input-shell flex-1 px-3 py-3">
+                                                <textarea
+                                                    value={documentPrompt}
+                                                    onChange={(e) => setDocumentPrompt(e.target.value)}
+                                                    placeholder="Write a business proposal, meeting notes, invoice JSON, training sheet, or any structured document you want."
+                                                    disabled={runState === "running"}
+                                                    rows={4}
+                                                    className="w-full resize-none bg-transparent text-[15px] leading-relaxed text-foreground placeholder:text-muted sm:text-sm"
+                                                />
+                                            </div>
+                                            <div className="grid gap-3 sm:w-52">
+                                                <FormatDropdown
+                                                    value={documentFormat}
+                                                    onChange={(v) => {
+                                                        setDocumentFormat(v)
+                                                        setGeneratedDocument(null)
+                                                    }}
+                                                    disabled={runState === "running"}
+                                                />
+                                                <RunButton runState={runState} canRun={!!canRunDocument} onClick={runAgent} agent="document" mode={documentMode} />
+                                            </div>
+                                        </div>
+                                        <label className="input-shell flex cursor-pointer items-center gap-3 px-3.5 py-3.5">
+                                            <Upload size={18} className="shrink-0 text-muted" />
+                                            <div className="min-w-0 flex-1">
+                                                <div className="text-[15px] text-foreground sm:text-sm">
+                                                    {documentImages.length > 0
+                                                        ? `${documentImages.length} image${documentImages.length === 1 ? "" : "s"} attached`
+                                                        : "Add image input (optional)"}
+                                                </div>
+                                                <div className="text-xs text-muted">PNG, JPG, JPEG, WEBP. Useful for invoice, receipt, or table extraction.</div>
+                                            </div>
+                                            <input
+                                                type="file"
+                                                accept="image/png,image/jpeg,image/jpg,image/webp"
+                                                multiple
+                                                onChange={(e) => setDocumentImages(Array.from(e.target.files ?? []))}
+                                                disabled={runState === "running"}
+                                                className="hidden"
+                                            />
+                                        </label>
+                                        {documentImages.length > 0 && (
+                                            <div className="rounded-lg border border-border bg-surface px-3 py-3 text-xs text-foreground-soft">
+                                                {documentImages.map((image) => image.name).join(" • ")}
+                                            </div>
+                                        )}
+                                        <div className="input-shell px-3 py-3">
+                                            <textarea
+                                                value={documentImageInstruction}
+                                                onChange={(e) => setDocumentImageInstruction(e.target.value)}
+                                                placeholder="Optional image instructions: extract the line items into Excel columns, pull totals, keep dates, and flag unreadable values."
+                                                disabled={runState === "running"}
+                                                rows={3}
+                                                className="w-full resize-none bg-transparent text-[15px] leading-relaxed text-foreground placeholder:text-muted sm:text-sm"
+                                            />
+                                        </div>
+                                        <div className="text-xs text-muted">
+                                            Use plain prompt generation, or attach image data and tell the agent what to extract. The result opens in an editable preview before download.
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         ) : (
                             <div className="space-y-3">
@@ -980,12 +1352,22 @@ export default function AgentsPage() {
                             {/* Email output */}
                             {selectedAgent.id === "email" && generatedEmail && (
                                 <div className="animate-fade-in mt-4 space-y-3">
-                                    <div className="flex flex-col gap-1 text-xs sm:flex-row sm:gap-3">
-                                        <div><span className="text-muted">To:</span> <span className="text-foreground">{emailTo}</span></div>
-                                        <div><span className="text-muted">Subject:</span> <span className="text-foreground">{generatedEmail.subject}</span></div>
+                                    <div className="rounded-lg border border-border bg-surface p-4">
+                                        <div className="mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted">
+                                            <Eye size={13} />
+                                            Email Preview
+                                        </div>
+                                        <div className="flex flex-col gap-1 text-xs sm:flex-row sm:flex-wrap sm:gap-3">
+                                            <div><span className="text-muted">From:</span> <span className="text-foreground">{emailFrom.trim() || user?.email || "sender@example.com"}</span></div>
+                                            <div><span className="text-muted">To:</span> <span className="text-foreground">{emailTo}</span></div>
+                                            <div><span className="text-muted">Subject:</span> <span className="text-foreground">{generatedEmail.subject}</span></div>
+                                        </div>
                                     </div>
-                                    <div className="whitespace-pre-wrap rounded-lg border border-border bg-surface p-4 text-[15px] leading-relaxed text-foreground sm:text-sm">
-                                        {generatedEmail.body}
+                                    <div className="rounded-lg border border-border bg-surface p-4">
+                                        <div className="mb-2 text-xs font-medium uppercase tracking-wider text-muted">Message</div>
+                                        <div className="whitespace-pre-wrap text-[15px] leading-relaxed text-foreground sm:text-sm">
+                                            {generatedEmail.body}
+                                        </div>
                                     </div>
                                     {emailSendState === "sent" && (
                                         <div className="text-xs text-success">{emailSentMsg}</div>
@@ -995,7 +1377,11 @@ export default function AgentsPage() {
                                         <div className="flex gap-2">
                                             <button onClick={sendEmail} disabled={emailSendState === "sending"} className="button-primary text-xs">
                                                 {emailSendState === "sending" ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                                                Approve & Send
+                                                Send via WorkingGent
+                                            </button>
+                                            <button onClick={openInGmail} className="button-secondary text-xs">
+                                                <ExternalLink size={14} />
+                                                Open in Gmail
                                             </button>
                                             <button onClick={runEmailAgent} className="button-secondary text-xs">
                                                 <RefreshCw size={14} />
@@ -1010,7 +1396,7 @@ export default function AgentsPage() {
                             )}
 
                             {/* Document output */}
-                            {selectedAgent.id === "document" && documentResult && (
+                            {selectedAgent.id === "document" && documentMode === "analyze" && documentResult && (
                                 <div className="animate-fade-in mt-4 space-y-3">
                                     <div className="flex flex-col gap-1 text-xs sm:flex-row sm:gap-4">
                                         <div><span className="text-muted">File:</span> <span className="text-foreground">{documentResult.fileName}</span></div>
@@ -1024,8 +1410,133 @@ export default function AgentsPage() {
                                     </div>
                                 </div>
                             )}
-                            {selectedAgent.id === "document" && runState === "running" && !documentResult && (
-                                <LoadingState text="Analyzing document..." />
+                            {selectedAgent.id === "document" && documentMode === "generate" && generatedDocument && (
+                                <div className="animate-fade-in mt-4 space-y-4">
+                                    <div className="rounded-lg border border-border bg-surface p-4">
+                                        <div className="mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted">
+                                            <Eye size={13} />
+                                            Document Preview
+                                        </div>
+                                        <div className="grid gap-3 sm:grid-cols-2">
+                                            <div className="input-shell flex items-center px-3 py-3">
+                                                <input
+                                                    value={documentTitle}
+                                                    onChange={(e) => setDocumentTitle(e.target.value)}
+                                                    placeholder="Document title"
+                                                    className="w-full bg-transparent text-[15px] text-foreground sm:text-sm"
+                                                />
+                                            </div>
+                                            <div className="input-shell flex items-center px-3 py-3">
+                                                <input
+                                                    value={documentFileName}
+                                                    onChange={(e) => setDocumentFileName(e.target.value)}
+                                                    placeholder="file-name"
+                                                    className="w-full bg-transparent text-[15px] text-foreground sm:text-sm"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="mt-3 flex flex-col gap-1 text-xs sm:flex-row sm:flex-wrap sm:gap-4">
+                                            <div><span className="text-muted">Format:</span> <span className="text-foreground uppercase">{documentFormat}</span></div>
+                                            <div><span className="text-muted">Preview:</span> <span className="text-foreground capitalize">{generatedDocument.previewMode}</span></div>
+                                        </div>
+                                        <p className="mt-3 text-[13px] leading-relaxed text-foreground-soft sm:text-xs">{generatedDocument.summary}</p>
+                                    </div>
+
+                                    {(generatedDocument.previewMode === "text" || documentFormat === "pdf" || documentFormat === "docx" || documentFormat === "txt") && (
+                                        <div className="rounded-lg border border-border bg-surface p-4">
+                                            <div className="mb-2 text-xs font-medium uppercase tracking-wider text-muted">Editable Content</div>
+                                            <textarea
+                                                value={documentTextDraft}
+                                                onChange={(e) => setDocumentTextDraft(e.target.value)}
+                                                rows={18}
+                                                className="min-h-[360px] w-full resize-y rounded-md border border-border bg-transparent px-3 py-3 text-[15px] leading-relaxed text-foreground outline-none sm:text-sm"
+                                            />
+                                        </div>
+                                    )}
+
+                                    {generatedDocument.previewMode === "json" && (
+                                        <div className="rounded-lg border border-border bg-surface p-4">
+                                            <div className="mb-2 text-xs font-medium uppercase tracking-wider text-muted">Editable JSON</div>
+                                            <textarea
+                                                value={documentJsonDraft}
+                                                onChange={(e) => setDocumentJsonDraft(e.target.value)}
+                                                rows={18}
+                                                className="min-h-[360px] w-full resize-y rounded-md border border-border bg-[#0d1117] px-3 py-3 font-mono text-[13px] leading-relaxed text-gray-300 outline-none"
+                                            />
+                                        </div>
+                                    )}
+
+                                    {generatedDocument.previewMode === "table" && (
+                                        <div className="rounded-lg border border-border bg-surface p-4">
+                                            <div className="mb-3 flex items-center justify-between">
+                                                <div className="text-xs font-medium uppercase tracking-wider text-muted">Editable Table</div>
+                                                <button
+                                                    onClick={() => {
+                                                        const nextRow = Object.fromEntries(documentTableColumns.map((column) => [column, ""]))
+                                                        setDocumentTableRows((prev) => [...prev, nextRow])
+                                                    }}
+                                                    className="button-secondary text-xs"
+                                                >
+                                                    Add Row
+                                                </button>
+                                            </div>
+                                            <div className="overflow-x-auto">
+                                                <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
+                                                    <thead>
+                                                        <tr>
+                                                            {documentTableColumns.map((column) => (
+                                                                <th key={column} className="border-b border-border px-3 py-2 text-xs font-medium uppercase tracking-wider text-muted">
+                                                                    {column}
+                                                                </th>
+                                                            ))}
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {documentTableRows.map((row, rowIndex) => (
+                                                            <tr key={`row-${rowIndex}`}>
+                                                                {documentTableColumns.map((column) => (
+                                                                    <td key={`${rowIndex}-${column}`} className="border-b border-border/60 px-2 py-2">
+                                                                        <input
+                                                                            value={String(row[column] ?? "")}
+                                                                            onChange={(e) =>
+                                                                                setDocumentTableRows((prev) =>
+                                                                                    prev.map((item, index) =>
+                                                                                        index === rowIndex
+                                                                                            ? { ...item, [column]: e.target.value }
+                                                                                            : item
+                                                                                    )
+                                                                                )
+                                                                            }
+                                                                            className="w-full rounded-md border border-border bg-transparent px-2 py-2 text-[13px] text-foreground outline-none"
+                                                                        />
+                                                                    </td>
+                                                                ))}
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="flex flex-wrap gap-2">
+                                        <button
+                                            onClick={downloadGeneratedDocument}
+                                            disabled={documentDownloadState === "downloading"}
+                                            className="button-primary text-xs"
+                                        >
+                                            {documentDownloadState === "downloading" ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                                            Download {documentFormat.toUpperCase()}
+                                        </button>
+                                        <button onClick={runDocumentGenerationAgent} className="button-secondary text-xs">
+                                            <RefreshCw size={14} />
+                                            Regenerate
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                            {selectedAgent.id === "document" && runState === "running" && !documentResult && !generatedDocument && (
+                                <LoadingState text={documentMode === "generate" ? "Generating document preview..." : "Analyzing document..."} />
                             )}
 
                             {/* Browser output */}
@@ -1221,18 +1732,22 @@ function RunButton({
     canRun,
     onClick,
     agent,
+    mode,
 }: {
     runState: RunState
     canRun: boolean
     onClick: () => void
     agent: AgentId
+    mode?: DocumentMode
 }) {
     const labels: Record<AgentId, [React.ReactNode, React.ReactNode]> = {
         coding: [<><Play size={15} /> <span className="hidden sm:inline">Run</span></>, <><Loader2 size={15} className="animate-spin" /> <span className="hidden sm:inline">Building</span></>],
         websearch: [<><Search size={15} /> <span className="hidden sm:inline">Search</span></>, <><Loader2 size={15} className="animate-spin" /> <span className="hidden sm:inline">Searching</span></>],
-        email: [<><PenLine size={15} /> <span className="hidden sm:inline">Draft</span></>, <><Loader2 size={15} className="animate-spin" /> <span className="hidden sm:inline">Drafting</span></>],
+        email: [<><PenLine size={15} /> <span className="hidden sm:inline">Generate Preview</span></>, <><Loader2 size={15} className="animate-spin" /> <span className="hidden sm:inline">Generating</span></>],
         github: [<><Github size={15} /> <span className="hidden sm:inline">Open</span></>, <><Loader2 size={15} className="animate-spin" /> <span className="hidden sm:inline">Loading</span></>],
-        document: [<><FileText size={15} /> <span className="hidden sm:inline">Analyze</span></>, <><Loader2 size={15} className="animate-spin" /> <span className="hidden sm:inline">Analyzing</span></>],
+        document: mode === "generate"
+            ? [<><FileText size={15} /> <span className="hidden sm:inline">Generate</span></>, <><Loader2 size={15} className="animate-spin" /> <span className="hidden sm:inline">Generating</span></>]
+            : [<><FileText size={15} /> <span className="hidden sm:inline">Analyze</span></>, <><Loader2 size={15} className="animate-spin" /> <span className="hidden sm:inline">Analyzing</span></>],
         browser: [<><Chrome size={15} /> <span className="hidden sm:inline">Run</span></>, <><Loader2 size={15} className="animate-spin" /> <span className="hidden sm:inline">Running</span></>],
     }
 

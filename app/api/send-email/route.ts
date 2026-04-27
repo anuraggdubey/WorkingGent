@@ -5,7 +5,7 @@ import { AgentExecutionError } from "@/lib/agents/shared"
 export async function POST(req: Request) {
     try {
         const body = await req.json()
-        const { to, subject, htmlBody, textBody, approved } = body
+        const { to, subject, htmlBody, textBody, approved, replyTo } = body
 
         if (!to || !subject || (!htmlBody && !textBody)) {
             return NextResponse.json(
@@ -21,17 +21,25 @@ export async function POST(req: Request) {
             )
         }
 
+        if (replyTo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(replyTo)) {
+            return NextResponse.json(
+                { error: `Invalid sender email address: ${replyTo}` },
+                { status: 400 }
+            )
+        }
+
         const info = await sendDraftedEmail({
             approved: Boolean(approved),
             to,
             subject,
             body: textBody ?? htmlBody,
+            replyTo,
         })
 
         return NextResponse.json({
             success: true,
             messageId: info.messageId,
-            message: `Email sent successfully to ${to}`,
+            message: `Email sent via WorkingGent to ${to}`,
         })
     } catch (error: unknown) {
         console.error("[send-email] Error:", error)

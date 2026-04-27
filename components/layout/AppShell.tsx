@@ -13,6 +13,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     }
 
     /* Agents page: no wrapper padding — handled internally for 3-col layout */
+    if (pathname.startsWith("/sign-in") || pathname.startsWith("/sign-up")) {
+        return <div className="min-h-screen min-h-dvh bg-background text-foreground">{children}</div>
+    }
+
     const isAgentsPage = pathname === "/agents"
 
     return (

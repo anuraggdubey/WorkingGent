@@ -5,13 +5,13 @@ import { AgentExecutionError } from "@/lib/agents/shared"
 export async function POST(req: Request) {
     try {
         const body = await req.json()
-        const { recipientEmail, subject, context } = body
+        const { senderEmail, recipientEmail, subject, context } = body
 
         if (!context || !recipientEmail) {
             return NextResponse.json({ error: "Recipient email and context are required" }, { status: 400 })
         }
 
-        const draft = await generateEmailDraft({ recipientEmail, subject, context })
+        const draft = await generateEmailDraft({ senderEmail, recipientEmail, subject, context })
 
         return NextResponse.json({
             success: true,
