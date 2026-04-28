@@ -5,8 +5,9 @@ import { useAuth } from "@/lib/AuthContext"
 import { useHasMounted } from "@/lib/useHasMounted"
 
 export default function SettingsPage() {
-    const { isAuthenticated, user, logout } = useAuth()
+    const { isAuthenticated, isHydrated, user, logout } = useAuth()
     const mounted = useHasMounted()
+    const canRenderClientState = mounted && isHydrated
 
     return (
         <div className="mx-auto max-w-lg space-y-4">
@@ -16,7 +17,7 @@ export default function SettingsPage() {
             </div>
 
             <div className="panel p-4">
-                {!mounted ? (
+                {!canRenderClientState ? (
                     <div className="space-y-4">
                         <div className="flex items-center gap-3">
                             <div className="skeleton h-10 w-10 rounded-lg" />

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useSyncExternalStore } from "react"
 
 /**
  * Returns false during SSR and on the very first client render,
@@ -9,7 +9,9 @@ import { useEffect, useState } from "react"
  * localStorage, window, etc.) and prevent hydration mismatches.
  */
 export function useHasMounted() {
-    const [mounted, setMounted] = useState(false)
-    useEffect(() => setMounted(true), [])
-    return mounted
+    return useSyncExternalStore(
+        () => () => {},
+        () => true,
+        () => false
+    )
 }

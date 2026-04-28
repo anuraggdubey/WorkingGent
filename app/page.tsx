@@ -15,8 +15,9 @@ const AGENTS = [
 ]
 
 export default function Home() {
-    const { isAuthenticated } = useAuth()
+    const { isAuthenticated, isHydrated } = useAuth()
     const mounted = useHasMounted()
+    const canRenderClientState = mounted && isHydrated
 
     return (
         <div className="flex min-h-screen min-h-dvh flex-col">
@@ -26,7 +27,7 @@ export default function Home() {
                     WorkingGent
                 </Link>
                 <div className="flex items-center gap-2">
-                    {!mounted ? (
+                    {!canRenderClientState ? (
                         <div className="h-9 w-20" />
                     ) : !isAuthenticated ? (
                         <>
@@ -57,7 +58,7 @@ export default function Home() {
                     </p>
 
                     <div className="mt-8 flex justify-center gap-3">
-                        {!mounted ? (
+                        {!canRenderClientState ? (
                             <div className="h-11 w-32" />
                         ) : !isAuthenticated ? (
                             <>

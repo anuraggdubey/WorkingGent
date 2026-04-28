@@ -1,14 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { Moon, SunMedium } from "lucide-react"
 import { useTheme } from "next-themes"
+import { useHasMounted } from "@/lib/useHasMounted"
 
 export function ThemeToggle() {
   const { setTheme, theme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => setMounted(true), [])
+  const mounted = useHasMounted()
 
   if (!mounted) {
     return <div className="h-8 w-8 rounded-lg border border-border" />

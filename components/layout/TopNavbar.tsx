@@ -20,7 +20,7 @@ type PlatformStatus = {
 
 export default function TopNavbar() {
     const mounted = useHasMounted()
-    const { user, isAuthenticated, logout } = useAuth()
+    const { user, isAuthenticated, isHydrated, logout } = useAuth()
     const pathname = usePathname()
     const [platformStatus, setPlatformStatus] = useState<PlatformStatus | null>(null)
     const [githubBusy, setGithubBusy] = useState(false)
@@ -48,6 +48,8 @@ export default function TopNavbar() {
         }
     }
 
+    const canRenderClientState = mounted && isHydrated
+
     return (
         <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-surface px-4 sm:h-14 sm:px-6">
             {/* Left */}
@@ -67,7 +69,7 @@ export default function TopNavbar() {
             {/* Right */}
             <div className="flex items-center gap-1.5 sm:gap-2">
                 {/* GitHub (desktop only) — only render after mount */}
-                {mounted && github?.configured && github.connected ? (
+                {canRenderClientState && github?.configured && github.connected ? (
                     <div className="hidden items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-xs sm:flex">
                         <Github size={13} className="text-muted" />
                         <span className="text-foreground-soft">@{github.login ?? "connected"}</span>
@@ -80,7 +82,7 @@ export default function TopNavbar() {
                             {githubBusy ? <Loader2 size={12} className="animate-spin" /> : <Unplug size={12} />}
                         </button>
                     </div>
-                ) : mounted && github?.configured && !github.connected ? (
+                ) : canRenderClientState && github?.configured && !github.connected ? (
                     <Link href="/api/auth/github" className="hidden items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-foreground-soft hover:text-foreground sm:inline-flex">
                         <Github size={13} />
                         Connect
@@ -90,7 +92,7 @@ export default function TopNavbar() {
                 <ThemeToggle />
 
                 {/* Auth buttons — only render after mount to avoid hydration mismatch */}
-                {!mounted ? (
+                {!canRenderClientState ? (
                     <div className="h-8 w-8 rounded-lg sm:w-20" />
                 ) : isAuthenticated && user ? (
                     <div className="flex items-center gap-1.5">

@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Area, AreaChart } from "recharts"
 import type { ChartDataPoint } from "@/lib/AgentContext"
+import { useHasMounted } from "@/lib/useHasMounted"
 
 type Summary = {
     totalScore: string
@@ -18,11 +18,7 @@ export default function EarningsAnalyticsPanel({
     data: ChartDataPoint[]
     summary: Summary
 }) {
-    const [mounted, setMounted] = useState(false)
-
-    useEffect(() => {
-        setMounted(true)
-    }, [])
+    const mounted = useHasMounted()
 
     return (
         <div className="relative z-10 h-full min-h-[320px]">
