@@ -1,7 +1,3 @@
-import { PDFParse } from "pdf-parse"
-import * as XLSX from "xlsx"
-import { Document, Packer, Paragraph, Table, TableCell, TableRow, TextRun } from "docx"
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib"
 import OpenAI from "openai"
 import { completeWithOpenRouter, completeWithOpenRouterMessages } from "@/lib/llm/openrouter"
 import { AgentExecutionError, createLlmError } from "@/lib/agents/shared"
@@ -233,7 +229,7 @@ export async function exportGeneratedDocument(input: ExportDocumentInput): Promi
             return {
                 fileName: `${fileStem}.xlsx`,
                 mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                buffer: buildExcelBuffer(payload),
+                buffer: await buildExcelBuffer(payload),
             }
         case "pdf":
             return {
@@ -333,6 +329,7 @@ async function normalizeDocument(buffer: Buffer, fileName: string, fileType: Sup
 }
 
 async function extractPdfText(buffer: Buffer) {
+    const { PDFParse } = await import("pdf-parse")
     const parser = new PDFParse({ data: buffer })
     try {
         const result = await parser.getText()
@@ -352,7 +349,8 @@ function normalizePlainText(fileName: string, text: string) {
     return `DOCUMENT: ${fileName}\nTYPE: text\n\nCONTENT:\n${compactText}`
 }
 
-function normalizeWorkbook(fileName: string, buffer: Buffer) {
+async function normalizeWorkbook(fileName: string, buffer: Buffer) {
+    const XLSX = await import("xlsx")
     const workbook = XLSX.read(buffer, { type: "buffer" })
     const sections = workbook.SheetNames.map((sheetName) => {
         const sheet = workbook.Sheets[sheetName]
@@ -373,7 +371,8 @@ function normalizeWorkbook(fileName: string, buffer: Buffer) {
     return `DOCUMENT: ${fileName}\nTYPE: spreadsheet\n\n${sections.join("\n\n")}`
 }
 
-function normalizeCsv(fileName: string, buffer: Buffer) {
+async function normalizeCsv(fileName: string, buffer: Buffer) {
+    const XLSX = await import("xlsx")
     const workbook = XLSX.read(buffer, { type: "buffer" })
     const sheetName = workbook.SheetNames[0]
     const sheet = workbook.Sheets[sheetName]
@@ -556,7 +555,8 @@ function buildJsonFallback(input: ReturnType<typeof normalizeExportInput>) {
     }
 }
 
-function buildExcelBuffer(input: ReturnType<typeof normalizeExportInput>) {
+async function buildExcelBuffer(input: ReturnType<typeof normalizeExportInput>) {
+    const XLSX = await import("xlsx")
     const workbook = XLSX.utils.book_new()
     const rows = input.tableRows.length > 0
         ? input.tableRows
@@ -573,6 +573,7 @@ function buildExcelBuffer(input: ReturnType<typeof normalizeExportInput>) {
 }
 
 async function buildPdfBuffer(input: ReturnType<typeof normalizeExportInput>) {
+    const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib")
     const pdf = await PDFDocument.create()
     const page = pdf.addPage([595.28, 841.89])
     const font = await pdf.embedFont(StandardFonts.Helvetica)
@@ -616,6 +617,7 @@ async function buildPdfBuffer(input: ReturnType<typeof normalizeExportInput>) {
 }
 
 async function buildDocxBuffer(input: ReturnType<typeof normalizeExportInput>) {
+    const { Document, Packer, Paragraph, Table, TableCell, TableRow, TextRun } = await import("docx")
     const children: Array<Paragraph | Table> = [
         new Paragraph({
             children: [new TextRun({ text: input.title, bold: true, size: 32 })],
