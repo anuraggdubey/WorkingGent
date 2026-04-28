@@ -4,6 +4,7 @@ import { AgentExecutionError } from "@/lib/agents/shared"
 import type { GeneratedDocumentFormat } from "@/types/document"
 
 export const maxDuration = 60
+export const runtime = "nodejs"
 
 export async function POST(req: Request) {
     try {

@@ -34,6 +34,7 @@ import {
     Search,
     Send,
     Upload,
+    X,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import type { Components } from "react-markdown"
@@ -53,12 +54,19 @@ const GitHubAgent = dynamic(() => import("@/components/agents/GitHubAgent"), {
 })
 
 /* ── Format Dropdown ── */
-const FORMAT_OPTIONS: { value: GeneratedDocumentFormat; label: string; icon: React.ElementType; color: string; desc: string }[] = [
-    { value: "pdf",  label: "PDF",   icon: FileText,        color: "#ef4444", desc: "Portable Document" },
-    { value: "docx", label: "DOCX",  icon: FileCode,        color: "#3b82f6", desc: "Word Document" },
-    { value: "xlsx", label: "Excel", icon: FileSpreadsheet,  color: "#10b981", desc: "Spreadsheet" },
-    { value: "json", label: "JSON",  icon: Braces,           color: "#f59e0b", desc: "Structured Data" },
-    { value: "txt",  label: "TXT",   icon: FileType,         color: "#8b5cf6", desc: "Plain Text" },
+const FORMAT_OPTIONS: {
+    value: GeneratedDocumentFormat
+    label: string
+    icon: React.ElementType
+    desc: string
+    chipClass: string
+    iconClass: string
+}[] = [
+    { value: "pdf",  label: "PDF",   icon: FileText,         desc: "Portable Document", chipClass: "bg-red-500/10", iconClass: "text-red-500" },
+    { value: "docx", label: "DOCX",  icon: FileCode,         desc: "Word Document",     chipClass: "bg-blue-500/10", iconClass: "text-blue-500" },
+    { value: "xlsx", label: "Excel", icon: FileSpreadsheet,  desc: "Spreadsheet",       chipClass: "bg-emerald-500/10", iconClass: "text-emerald-500" },
+    { value: "json", label: "JSON",  icon: Braces,           desc: "Structured Data",   chipClass: "bg-amber-500/10", iconClass: "text-amber-500" },
+    { value: "txt",  label: "TXT",   icon: FileType,         desc: "Plain Text",        chipClass: "bg-violet-500/10", iconClass: "text-violet-500" },
 ]
 
 function FormatDropdown({
@@ -100,15 +108,12 @@ function FormatDropdown({
                 onClick={() => !disabled && setOpen((p) => !p)}
                 disabled={disabled}
                 className={`input-shell flex w-full items-center gap-2.5 px-3 py-3 transition-all duration-200 ${
-                    disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:border-[color:var(--border-strong)]"
-                } ${open ? "border-[color:var(--primary)] shadow-[0_0_0_2px_var(--ring)]" : ""}`}
-                style={{ minHeight: 44 }}
+                    disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:border-(--border-strong)"
+                } min-h-11 ${open ? "border-(--primary) shadow-[0_0_0_2px_var(--ring)]" : ""}`}
+                aria-label={`Document format: ${current.label}`}
             >
-                <span
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
-                    style={{ backgroundColor: `${current.color}14` }}
-                >
-                    <CurrentIcon size={14} style={{ color: current.color }} />
+                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${current.chipClass}`}>
+                    <CurrentIcon size={14} className={current.iconClass} />
                 </span>
                 <div className="min-w-0 flex-1 text-left">
                     <div className="text-sm font-medium text-foreground">{current.label}</div>
@@ -122,8 +127,7 @@ function FormatDropdown({
 
             {open && (
                 <div
-                    className="absolute left-0 right-0 z-30 mt-1.5 overflow-hidden rounded-xl border border-border bg-surface shadow-lg"
-                    style={{ animation: "formatDropIn 180ms ease-out both" }}
+                    className="animate-[formatDropIn_180ms_ease-out_both] absolute left-0 right-0 z-30 mt-1.5 overflow-hidden rounded-xl border border-border bg-surface shadow-lg"
                 >
                     {FORMAT_OPTIONS.map((opt) => {
                         const Icon = opt.icon
@@ -136,15 +140,12 @@ function FormatDropdown({
                                 className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors duration-150 ${
                                     isActive
                                         ? "bg-primary-soft"
-                                        : "hover:bg-[color:var(--surface-elevated)]"
+                                        : "hover:bg-(--surface-elevated)"
                                 }`}
-                                style={{ minHeight: 44 }}
+                                aria-label={`Choose ${opt.label} format`}
                             >
-                                <span
-                                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
-                                    style={{ backgroundColor: `${opt.color}14` }}
-                                >
-                                    <Icon size={14} style={{ color: opt.color }} />
+                                <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${opt.chipClass}`}>
+                                    <Icon size={14} className={opt.iconClass} />
                                 </span>
                                 <div className="min-w-0 flex-1">
                                     <div className={`text-sm font-medium ${isActive ? "text-primary" : "text-foreground"}`}>{opt.label}</div>
@@ -309,6 +310,41 @@ function getErrorMessage(error: unknown, fallback: string) {
     return message
 }
 
+async function parseJsonResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
+    const contentType = response.headers.get("content-type") ?? ""
+
+    if (contentType.includes("application/json")) {
+        const payload = await response.json().catch(() => null) as T | { error?: string } | null
+
+        if (!response.ok) {
+            const message =
+                payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string"
+                    ? payload.error
+                    : fallbackMessage
+            throw new Error(message)
+        }
+
+        if (!payload) {
+            throw new Error(fallbackMessage)
+        }
+
+        return payload as T
+    }
+
+    const rawText = await response.text().catch(() => "")
+    const normalizedText = rawText.replace(/\s+/g, " ").trim()
+
+    if (response.status === 401) {
+        throw new Error("Your session has expired on the deployed site. Sign in again and retry the image extraction.")
+    }
+
+    if (normalizedText.startsWith("<!DOCTYPE") || normalizedText.startsWith("<html")) {
+        throw new Error("The server returned an HTML page instead of the document API response. Refresh the deployed app, sign in again, and retry.")
+    }
+
+    throw new Error(normalizedText || fallbackMessage)
+}
+
 /* ── Bottom Sheet Component ── */
 function BottomSheet({
     open,
@@ -319,40 +355,15 @@ function BottomSheet({
     onClose: () => void
     children: React.ReactNode
 }) {
-    const [visible, setVisible] = useState(false)
-    const [closing, setClosing] = useState(false)
-
-    useEffect(() => {
-        if (open) {
-            setVisible(true)
-            setClosing(false)
-        } else if (visible && !closing) {
-            setClosing(true)
-            setTimeout(() => {
-                setVisible(false)
-                setClosing(false)
-            }, 250)
-        }
-    }, [open])
-
-    const handleClose = () => {
-        setClosing(true)
-        setTimeout(() => {
-            setVisible(false)
-            setClosing(false)
-            onClose()
-        }, 250)
-    }
-
-    if (!visible) return null
+    if (!open) return null
 
     return (
         <>
             <div
-                className={`bottom-sheet-backdrop ${closing ? "animate-backdrop-out" : "animate-backdrop-in"}`}
-                onClick={handleClose}
+                className="bottom-sheet-backdrop animate-backdrop-in"
+                onClick={onClose}
             />
-            <div className={`bottom-sheet ${closing ? "animate-slide-down" : "animate-slide-up"}`}>
+            <div className="bottom-sheet animate-slide-up">
                 <div className="bottom-sheet-handle" />
                 {children}
             </div>
@@ -382,13 +393,110 @@ function Collapsible({
                 {open ? <ChevronUp size={14} className="text-muted" /> : <ChevronDown size={14} className="text-muted" />}
             </button>
             <div
-                className="collapsible-content"
-                style={{
-                    maxHeight: open ? "2000px" : "0px",
-                    opacity: open ? 1 : 0,
-                }}
+                className={`collapsible-content overflow-hidden transition-all duration-200 ${
+                    open ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"
+                }`}
             >
                 {children}
+            </div>
+        </div>
+    )
+}
+
+function ColumnDialog({
+    open,
+    value,
+    error,
+    onValueChange,
+    onClose,
+    onSubmit,
+}: {
+    open: boolean
+    value: string
+    error: string | null
+    onValueChange: (value: string) => void
+    onClose: () => void
+    onSubmit: () => void
+}) {
+    useEffect(() => {
+        if (!open) return
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape") onClose()
+        }
+
+        document.addEventListener("keydown", handleKeyDown)
+        return () => document.removeEventListener("keydown", handleKeyDown)
+    }, [open, onClose])
+
+    if (!open) return null
+
+    return (
+        <div
+            className="fixed inset-0 z-90 flex items-center justify-center bg-black/48 px-4 py-6 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <div
+                className="w-full max-w-md overflow-hidden rounded-[28px] border border-border bg-surface shadow-[0_24px_80px_rgba(15,23,42,0.18)]"
+                onClick={(event) => event.stopPropagation()}
+            >
+                <div className="flex items-start justify-between border-b border-border px-5 py-4">
+                    <div>
+                        <div className="text-[11px] font-medium uppercase tracking-[0.24em] text-muted">Spreadsheet Editor</div>
+                        <div className="mt-1 text-lg font-semibold text-foreground">Add a new column</div>
+                        <p className="mt-1 text-sm leading-6 text-foreground-soft">
+                            Create another field for the extracted Excel data. You can rename it later if needed.
+                        </p>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="flex h-10 w-10 items-center justify-center rounded-2xl text-muted transition-colors hover:bg-surface-elevated hover:text-foreground"
+                        aria-label="Close add column dialog"
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
+
+                <form
+                    onSubmit={(event) => {
+                        event.preventDefault()
+                        onSubmit()
+                    }}
+                    className="space-y-4 px-5 py-5"
+                >
+                    <div>
+                        <label htmlFor="new-column-name" className="mb-2 block text-xs font-medium uppercase tracking-wider text-muted">
+                            Column Name
+                        </label>
+                        <div className="input-shell flex items-center px-3 py-3">
+                            <input
+                                id="new-column-name"
+                                value={value}
+                                onChange={(event) => onValueChange(event.target.value)}
+                                placeholder="Inventory status"
+                                autoFocus
+                                className="w-full bg-transparent text-[15px] text-foreground outline-none sm:text-sm"
+                            />
+                        </div>
+                        <div className="mt-2 text-xs text-foreground-soft">
+                            Use a short, clear label so the exported Excel sheet stays easy to scan.
+                        </div>
+                        {error && (
+                            <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-500">
+                                {error}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                        <button type="button" onClick={onClose} className="button-secondary text-xs">
+                            Cancel
+                        </button>
+                        <button type="submit" className="button-primary text-xs">
+                            Add Column
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     )
@@ -433,6 +541,9 @@ export default function AgentsPage() {
     const [documentJsonDraft, setDocumentJsonDraft] = useState("")
     const [documentTableColumns, setDocumentTableColumns] = useState<string[]>([])
     const [documentTableRows, setDocumentTableRows] = useState<Array<Record<string, string | number | boolean | null>>>([])
+    const [isColumnDialogOpen, setIsColumnDialogOpen] = useState(false)
+    const [pendingColumnName, setPendingColumnName] = useState("")
+    const [pendingColumnError, setPendingColumnError] = useState<string | null>(null)
     const [documentDownloadState, setDocumentDownloadState] = useState<"idle" | "downloading">("idle")
     const [browserResult, setBrowserResult] = useState<BrowserAutomationResult | null>(null)
     const [singleFile, setSingleFile] = useState<{ code: string; filename: string; language: string } | null>(null)
@@ -463,6 +574,9 @@ export default function AgentsPage() {
         setDocumentJsonDraft("")
         setDocumentTableColumns([])
         setDocumentTableRows([])
+        setIsColumnDialogOpen(false)
+        setPendingColumnName("")
+        setPendingColumnError(null)
         setDocumentDownloadState("idle")
         setBrowserResult(null)
         setSteps([])
@@ -751,8 +865,17 @@ export default function AgentsPage() {
                 method: "POST",
                 body: formData,
             })
-            const data = await response.json()
-            if (!response.ok) throw new Error(data.error ?? "Document generation failed")
+            const data = await parseJsonResponse<GeneratedDocumentPayload & {
+                success?: boolean
+                title?: string
+                suggestedFileName?: string
+                textContent?: string
+                jsonContent?: Record<string, unknown> | Array<unknown> | null
+                tableColumns?: string[]
+                tableRows?: Array<Record<string, string | number | boolean | null>>
+                summary?: string
+                previewMode?: "text" | "json" | "table"
+            }>(response, "Document generation failed")
 
             setStepStatus(1, "done")
             setStepStatus(2, "running")
@@ -799,8 +922,25 @@ export default function AgentsPage() {
             })
 
             if (!response.ok) {
-                const data = await response.json().catch(() => null)
-                throw new Error(data?.error ?? "Document export failed")
+                const contentType = response.headers.get("content-type") ?? ""
+
+                if (contentType.includes("application/json")) {
+                    const data = await response.json().catch(() => null)
+                    throw new Error(data?.error ?? "Document export failed")
+                }
+
+                const rawText = await response.text().catch(() => "")
+                const normalizedText = rawText.replace(/\s+/g, " ").trim()
+
+                if (response.status === 401) {
+                    throw new Error("Your session has expired on the deployed site. Sign in again before exporting the document.")
+                }
+
+                if (normalizedText.startsWith("<!DOCTYPE") || normalizedText.startsWith("<html")) {
+                    throw new Error("The server returned an HTML page instead of the export response. Refresh the deployed app, sign in again, and retry.")
+                }
+
+                throw new Error(normalizedText || "Document export failed")
             }
 
             const blob = await response.blob()
@@ -821,6 +961,47 @@ export default function AgentsPage() {
         } finally {
             setDocumentDownloadState("idle")
         }
+    }
+
+    const addDocumentTableRow = () => {
+        const nextRow = Object.fromEntries(documentTableColumns.map((column) => [column, ""]))
+        setDocumentTableRows((prev) => [...prev, nextRow])
+    }
+
+    const openDocumentTableColumnDialog = () => {
+        setPendingColumnError(null)
+        setPendingColumnName(`Column ${documentTableColumns.length + 1}`)
+        setIsColumnDialogOpen(true)
+    }
+
+    const closeDocumentTableColumnDialog = () => {
+        setIsColumnDialogOpen(false)
+        setPendingColumnName("")
+        setPendingColumnError(null)
+    }
+
+    const addDocumentTableColumn = () => {
+        const nextColumn = pendingColumnName.trim()
+
+        if (!nextColumn) {
+            setPendingColumnError("Enter a column name to continue.")
+            return
+        }
+
+        if (documentTableColumns.includes(nextColumn)) {
+            setPendingColumnError(`"${nextColumn}" already exists. Choose a different name.`)
+            return
+        }
+
+        setPendingColumnError(null)
+        setDocumentTableColumns((prev) => [...prev, nextColumn])
+        setDocumentTableRows((prev) =>
+            prev.map((row) => ({
+                ...row,
+                [nextColumn]: "",
+            }))
+        )
+        closeDocumentTableColumnDialog()
     }
 
     const runBrowserAgent = async () => {
@@ -887,7 +1068,7 @@ export default function AgentsPage() {
     const SelectedIcon = selectedAgent.icon
 
     return (
-        <div className="flex h-[calc(100vh-3rem)] h-[calc(100dvh-3rem)] overflow-hidden sm:h-[calc(100vh-3.5rem)] sm:h-[calc(100dvh-3.5rem)]">
+        <div className="flex h-[calc(100dvh-3rem)] overflow-hidden sm:h-[calc(100dvh-3.5rem)]">
             {/* ── LEFT SIDEBAR (desktop only) ── */}
             <aside className="hidden w-52 shrink-0 border-r border-border lg:block">
                 <div className="p-3">
@@ -948,6 +1129,7 @@ export default function AgentsPage() {
                                             type="email"
                                             value={emailFrom}
                                             onChange={(e) => setEmailFrom(e.target.value)}
+                                            aria-label="Sender email"
                                             placeholder={user?.email || "sender@example.com"}
                                             disabled={runState === "running"}
                                             className="w-full bg-transparent text-[15px] text-foreground placeholder:text-muted sm:text-sm"
@@ -959,6 +1141,7 @@ export default function AgentsPage() {
                                             type="email"
                                             value={emailTo}
                                             onChange={(e) => setEmailTo(e.target.value)}
+                                            aria-label="Recipient email"
                                             placeholder="recipient@example.com"
                                             disabled={runState === "running"}
                                             className="w-full bg-transparent text-[15px] text-foreground placeholder:text-muted sm:text-sm"
@@ -970,6 +1153,7 @@ export default function AgentsPage() {
                                         <input
                                             value={emailSubject}
                                             onChange={(e) => setEmailSubject(e.target.value)}
+                                            aria-label="Email subject"
                                             placeholder="Subject (optional)"
                                             disabled={runState === "running"}
                                             className="w-full bg-transparent text-[15px] text-foreground placeholder:text-muted sm:text-sm"
@@ -980,6 +1164,7 @@ export default function AgentsPage() {
                                     <textarea
                                         value={emailContext}
                                         onChange={(e) => setEmailContext(e.target.value)}
+                                        aria-label="Email context"
                                         placeholder="Describe the goal, tone, and details..."
                                         disabled={runState === "running"}
                                         rows={3}
@@ -1027,6 +1212,7 @@ export default function AgentsPage() {
                                             <input
                                                 type="file"
                                                 accept=".pdf,.xlsx,.xls,.csv,.json,.txt"
+                                                aria-label="Upload document file"
                                                 onChange={(e) => setDocumentFile(e.target.files?.[0] ?? null)}
                                                 disabled={runState === "running"}
                                                 className="hidden"
@@ -1037,6 +1223,7 @@ export default function AgentsPage() {
                                                 <input
                                                     value={documentQuestion}
                                                     onChange={(e) => setDocumentQuestion(e.target.value)}
+                                                    aria-label="Document analysis question"
                                                     placeholder={selectedAgent.placeholder}
                                                     disabled={runState === "running"}
                                                     className="w-full bg-transparent text-[15px] text-foreground placeholder:text-muted sm:text-sm"
@@ -1052,6 +1239,7 @@ export default function AgentsPage() {
                                                 <textarea
                                                     value={documentPrompt}
                                                     onChange={(e) => setDocumentPrompt(e.target.value)}
+                                                    aria-label="Document generation prompt"
                                                     placeholder="Write a business proposal, meeting notes, invoice JSON, training sheet, or any structured document you want."
                                                     disabled={runState === "running"}
                                                     rows={4}
@@ -1084,6 +1272,7 @@ export default function AgentsPage() {
                                                 type="file"
                                                 accept="image/png,image/jpeg,image/jpg,image/webp"
                                                 multiple
+                                                aria-label="Upload images for document generation"
                                                 onChange={(e) => setDocumentImages(Array.from(e.target.files ?? []))}
                                                 disabled={runState === "running"}
                                                 className="hidden"
@@ -1098,6 +1287,7 @@ export default function AgentsPage() {
                                             <textarea
                                                 value={documentImageInstruction}
                                                 onChange={(e) => setDocumentImageInstruction(e.target.value)}
+                                                aria-label="Image extraction instructions"
                                                 placeholder="Optional image instructions: extract the line items into Excel columns, pull totals, keep dates, and flag unreadable values."
                                                 disabled={runState === "running"}
                                                 rows={3}
@@ -1119,8 +1309,8 @@ export default function AgentsPage() {
                                             value={codingLanguage}
                                             onChange={(e) => setCodingLanguage(e.target.value)}
                                             disabled={runState === "running"}
-                                            className="input-shell w-full rounded-lg px-3 py-2.5 text-[13px] text-foreground sm:w-auto sm:text-xs"
-                                            style={{ minHeight: 40 }}
+                                            aria-label="Coding language"
+                                            className="input-shell min-h-10 w-full rounded-lg px-3 py-2.5 text-[13px] text-foreground sm:w-auto sm:text-xs"
                                         >
                                             <option value="html-css-js">HTML / CSS / JS</option>
                                             <option value="python">Python</option>
@@ -1143,6 +1333,7 @@ export default function AgentsPage() {
                                             value={prompt}
                                             onChange={(e) => setPrompt(e.target.value)}
                                             onKeyDown={(e) => e.key === "Enter" && void runAgent()}
+                                            aria-label={`${selectedAgent.label} prompt`}
                                             placeholder={selectedAgent.placeholder}
                                             disabled={runState === "running"}
                                             className="w-full bg-transparent text-[15px] text-foreground placeholder:text-muted sm:text-sm"
@@ -1159,7 +1350,7 @@ export default function AgentsPage() {
 
                             {selectedAgent.id !== "github" && runState === "idle" && (
                                 <div className="animate-fade-in py-16 text-center sm:py-20">
-                                    <SelectedIcon size={28} className="mx-auto text-muted sm:size-[24px]" />
+                                    <SelectedIcon size={28} className="mx-auto text-muted sm:size-6" />
                                     <p className="mt-3 text-[15px] text-muted sm:text-sm">{selectedAgent.label} is ready</p>
                                     <p className="mt-1 text-xs text-muted">Enter a task above to begin</p>
                                 </div>
@@ -1172,9 +1363,9 @@ export default function AgentsPage() {
                                         <div key={step.step} className="flex items-center gap-3 rounded-lg px-2 py-2 sm:gap-2.5 sm:py-1.5">
                                             <div className="shrink-0">
                                                 {step.status === "done" ? (
-                                                    <CheckCircle2 size={16} className="text-success sm:size-[14px]" />
+                                                    <CheckCircle2 size={16} className="text-success sm:size-3.5" />
                                                 ) : step.status === "running" ? (
-                                                    <Loader2 size={16} className="animate-spin text-primary sm:size-[14px]" />
+                                                    <Loader2 size={16} className="animate-spin text-primary sm:size-3.5" />
                                                 ) : (
                                                     <div className="flex h-4 w-4 items-center justify-center rounded-full border border-border text-[9px] text-muted sm:h-3.5 sm:w-3.5">
                                                         {step.step}
@@ -1209,8 +1400,7 @@ export default function AgentsPage() {
                                                 onClick={() => setActiveTab(tab.id)}
                                                 className={`inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors ${
                                                     activeTab === tab.id ? "bg-primary-soft text-foreground" : "text-muted hover:text-foreground"
-                                                }`}
-                                                style={{ minHeight: 36 }}
+                                                } min-h-9`}
                                             >
                                                 <tab.icon size={12} />
                                                 {tab.label}
@@ -1223,8 +1413,8 @@ export default function AgentsPage() {
                                                     setCopied(activeTab)
                                                     setTimeout(() => setCopied(null), 1800)
                                                 }}
-                                                className="ml-auto p-2 text-xs text-muted hover:text-foreground"
-                                                style={{ minHeight: 36, minWidth: 36 }}
+                                                className="ml-auto min-h-9 min-w-9 p-2 text-xs text-muted hover:text-foreground"
+                                                aria-label={`Copy ${activeTab} code`}
                                             >
                                                 {copied === activeTab ? <Check size={14} /> : <Copy size={14} />}
                                             </button>
@@ -1234,17 +1424,17 @@ export default function AgentsPage() {
                                         projectId ? (
                                             <iframe
                                                 src={`/api/preview/${projectId}`}
-                                                className="h-[60vh] w-full border-0 sm:h-[500px]"
+                                                className="h-[60vh] w-full border-0 sm:h-125"
                                                 sandbox="allow-scripts allow-same-origin"
                                                 title="Preview"
                                             />
                                         ) : (
-                                            <div className="flex h-[60vh] items-center justify-center sm:h-[500px]">
+                                            <div className="flex h-[60vh] items-center justify-center sm:h-125">
                                                 <div className="skeleton h-6 w-32" />
                                             </div>
                                         )
                                     ) : (
-                                        <div className="h-[60vh] overflow-auto bg-[#0d1117] p-4 text-xs text-gray-300 sm:h-[500px]">
+                                        <div className="h-[60vh] overflow-auto bg-[#0d1117] p-4 text-xs text-gray-300 sm:h-125">
                                             <pre className="whitespace-pre-wrap">{fileContent(activeTab as "html" | "css" | "js")}</pre>
                                         </div>
                                     )}
@@ -1285,8 +1475,8 @@ export default function AgentsPage() {
                                                     setCopied("single")
                                                     setTimeout(() => setCopied(null), 1800)
                                                 }}
-                                                className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs text-muted hover:bg-surface-elevated hover:text-foreground"
-                                                style={{ minHeight: 36 }}
+                                                className="flex min-h-9 items-center gap-1 rounded-md px-2.5 py-1.5 text-xs text-muted hover:bg-surface-elevated hover:text-foreground"
+                                                aria-label="Copy generated file"
                                             >
                                                 {copied === "single" ? <Check size={13} /> : <Copy size={13} />}
                                                 <span className="hidden sm:inline">{copied === "single" ? "Copied" : "Copy"}</span>
@@ -1295,8 +1485,7 @@ export default function AgentsPage() {
                                                 <a
                                                     href={`/api/download/${projectId}`}
                                                     download
-                                                    className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs text-muted hover:bg-surface-elevated hover:text-foreground"
-                                                    style={{ minHeight: 36 }}
+                                                    className="flex min-h-9 items-center gap-1 rounded-md px-2.5 py-1.5 text-xs text-muted hover:bg-surface-elevated hover:text-foreground"
                                                 >
                                                     <Download size={13} />
                                                     <span className="hidden sm:inline">Download</span>
@@ -1305,7 +1494,7 @@ export default function AgentsPage() {
                                         </div>
                                     </div>
                                     {/* Code display — same height as the HTML preview iframe */}
-                                    <div className="h-[60vh] overflow-auto bg-[#0d1117] p-4 sm:h-[500px]">
+                                    <div className="h-[60vh] overflow-auto bg-[#0d1117] p-4 sm:h-125">
                                         <pre className="text-[13px] leading-relaxed text-gray-300 sm:text-xs"><code>{singleFile.code}</code></pre>
                                     </div>
                                 </div>
@@ -1330,8 +1519,7 @@ export default function AgentsPage() {
                                                         href={source.link}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="flex items-start justify-between gap-3 rounded-lg px-2 py-3 text-xs hover:bg-surface-elevated sm:py-2"
-                                                        style={{ minHeight: 44 }}
+                                                        className="flex min-h-11 items-start justify-between gap-3 rounded-lg px-2 py-3 text-xs hover:bg-surface-elevated sm:py-2"
                                                     >
                                                         <div>
                                                             <div className="font-medium text-foreground">{source.title}</div>
@@ -1422,6 +1610,7 @@ export default function AgentsPage() {
                                                 <input
                                                     value={documentTitle}
                                                     onChange={(e) => setDocumentTitle(e.target.value)}
+                                                    aria-label="Document title"
                                                     placeholder="Document title"
                                                     className="w-full bg-transparent text-[15px] text-foreground sm:text-sm"
                                                 />
@@ -1430,6 +1619,7 @@ export default function AgentsPage() {
                                                 <input
                                                     value={documentFileName}
                                                     onChange={(e) => setDocumentFileName(e.target.value)}
+                                                    aria-label="Document file name"
                                                     placeholder="file-name"
                                                     className="w-full bg-transparent text-[15px] text-foreground sm:text-sm"
                                                 />
@@ -1448,6 +1638,7 @@ export default function AgentsPage() {
                                             <textarea
                                                 value={documentTextDraft}
                                                 onChange={(e) => setDocumentTextDraft(e.target.value)}
+                                                aria-label="Editable document content"
                                                 rows={18}
                                                 className="min-h-[360px] w-full resize-y rounded-md border border-border bg-transparent px-3 py-3 text-[15px] leading-relaxed text-foreground outline-none sm:text-sm"
                                             />
@@ -1460,6 +1651,7 @@ export default function AgentsPage() {
                                             <textarea
                                                 value={documentJsonDraft}
                                                 onChange={(e) => setDocumentJsonDraft(e.target.value)}
+                                                aria-label="Editable JSON content"
                                                 rows={18}
                                                 className="min-h-[360px] w-full resize-y rounded-md border border-border bg-[#0d1117] px-3 py-3 font-mono text-[13px] leading-relaxed text-gray-300 outline-none"
                                             />
@@ -1470,15 +1662,20 @@ export default function AgentsPage() {
                                         <div className="rounded-lg border border-border bg-surface p-4">
                                             <div className="mb-3 flex items-center justify-between">
                                                 <div className="text-xs font-medium uppercase tracking-wider text-muted">Editable Table</div>
-                                                <button
-                                                    onClick={() => {
-                                                        const nextRow = Object.fromEntries(documentTableColumns.map((column) => [column, ""]))
-                                                        setDocumentTableRows((prev) => [...prev, nextRow])
-                                                    }}
-                                                    className="button-secondary text-xs"
-                                                >
-                                                    Add Row
-                                                </button>
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={openDocumentTableColumnDialog}
+                                                        className="button-secondary text-xs"
+                                                    >
+                                                        Add Column
+                                                    </button>
+                                                    <button
+                                                        onClick={addDocumentTableRow}
+                                                        className="button-secondary text-xs"
+                                                    >
+                                                        Add Row
+                                                    </button>
+                                                </div>
                                             </div>
                                             <div className="overflow-x-auto">
                                                 <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
@@ -1498,6 +1695,7 @@ export default function AgentsPage() {
                                                                     <td key={`${rowIndex}-${column}`} className="border-b border-border/60 px-2 py-2">
                                                                         <input
                                                                             value={String(row[column] ?? "")}
+                                                                            aria-label={`${column} for row ${rowIndex + 1}`}
                                                                             onChange={(e) =>
                                                                                 setDocumentTableRows((prev) =>
                                                                                     prev.map((item, index) =>
@@ -1607,7 +1805,7 @@ export default function AgentsPage() {
                                                         setTimeout(() => setCopied(null), 1800)
                                                     }}
                                                     className="flex items-center gap-1 text-[11px] text-muted hover:text-foreground"
-                                                    style={{ minHeight: 32, minWidth: 32 }}
+                                                    aria-label="Copy extracted content"
                                                 >
                                                     {copied === "browser" ? <Check size={12} /> : <Copy size={12} />}
                                                     <span className="hidden sm:inline">{copied === "browser" ? "Copied" : "Copy"}</span>
@@ -1640,7 +1838,11 @@ export default function AgentsPage() {
                     <div className="flex h-full flex-col">
                         <div className="flex items-center justify-between border-b border-border px-3 py-2">
                             <span className="text-[10px] font-medium uppercase tracking-wider text-muted">Details</span>
-                            <button onClick={() => setRightPanelOpen(!rightPanelOpen)} className="text-muted hover:text-foreground" style={{ minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <button
+                                onClick={() => setRightPanelOpen(!rightPanelOpen)}
+                                aria-label={rightPanelOpen ? "Collapse details panel" : "Expand details panel"}
+                                className="flex min-h-11 min-w-11 items-center justify-center text-muted hover:text-foreground"
+                            >
                                 {rightPanelOpen ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}
                             </button>
                         </div>
@@ -1706,8 +1908,7 @@ export default function AgentsPage() {
                                         isActive
                                             ? "bg-primary-soft text-foreground"
                                             : "text-foreground-soft active:bg-surface-elevated"
-                                    }`}
-                                    style={{ minHeight: 52 }}
+                                    } min-h-13`}
                                 >
                                     <Icon size={18} className={isActive ? "text-primary" : "text-muted"} />
                                     <div>
@@ -1721,6 +1922,17 @@ export default function AgentsPage() {
                     </nav>
                 </div>
             </BottomSheet>
+            <ColumnDialog
+                open={isColumnDialogOpen}
+                value={pendingColumnName}
+                error={pendingColumnError}
+                onValueChange={(value) => {
+                    setPendingColumnName(value)
+                    if (pendingColumnError) setPendingColumnError(null)
+                }}
+                onClose={closeDocumentTableColumnDialog}
+                onSubmit={addDocumentTableColumn}
+            />
         </div>
     )
 }
@@ -1757,8 +1969,7 @@ function RunButton({
         <button
             onClick={onClick}
             disabled={!canRun || runState === "running"}
-            className="button-primary shrink-0 disabled:opacity-40"
-            style={{ minWidth: 48 }}
+            className="button-primary min-w-12 shrink-0 disabled:opacity-40"
         >
             {runState === "running" ? runningLabel : idleLabel}
         </button>
@@ -1790,7 +2001,7 @@ function ErrorBox({ message, onRetry }: { message: string; onRetry?: () => void 
                 <span>{message}</span>
             </div>
             {onRetry && (
-                <button onClick={onRetry} className="mt-2.5 flex items-center gap-1.5 text-xs font-medium text-red-500 active:opacity-70" style={{ minHeight: 44 }}>
+                <button onClick={onRetry} className="mt-2.5 flex min-h-11 items-center gap-1.5 text-xs font-medium text-red-500 active:opacity-70">
                     <RotateCcw size={13} />
                     Try again
                 </button>

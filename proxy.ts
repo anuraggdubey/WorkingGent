@@ -1,12 +1,16 @@
+import { NextResponse } from "next/server"
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server"
 
-const isProtectedRoute = createRouteMatcher([
+const isProtectedPageRoute = createRouteMatcher([
     "/agents(.*)",
     "/activity(.*)",
     "/settings(.*)",
     "/dashboard(.*)",
     "/analytics(.*)",
     "/automation(.*)",
+])
+
+const isProtectedApiRoute = createRouteMatcher([
     "/api/analyze-document(.*)",
     "/api/analyze-repo(.*)",
     "/api/ask-repo(.*)",
@@ -27,7 +31,18 @@ const isProtectedRoute = createRouteMatcher([
 ])
 
 export default clerkMiddleware(async (auth, req) => {
-    if (isProtectedRoute(req)) {
+    if (isProtectedApiRoute(req)) {
+        const { userId } = await auth()
+
+        if (!userId) {
+            return NextResponse.json(
+                { error: "Unauthorized. Sign in to continue." },
+                { status: 401 }
+            )
+        }
+    }
+
+    if (isProtectedPageRoute(req)) {
         await auth.protect()
     }
 })
