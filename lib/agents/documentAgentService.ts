@@ -618,7 +618,7 @@ async function buildPdfBuffer(input: ReturnType<typeof normalizeExportInput>) {
 
 async function buildDocxBuffer(input: ReturnType<typeof normalizeExportInput>) {
     const { Document, Packer, Paragraph, Table, TableCell, TableRow, TextRun } = await import("docx")
-    const children: Array<Paragraph | Table> = [
+    const children: Array<InstanceType<typeof Paragraph> | InstanceType<typeof Table>> = [
         new Paragraph({
             children: [new TextRun({ text: input.title, bold: true, size: 32 })],
         }),
