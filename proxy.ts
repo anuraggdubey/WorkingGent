@@ -22,6 +22,7 @@ const isProtectedApiRoute = createRouteMatcher([
     "/api/export-document(.*)",
     "/api/generate-document(.*)",
     "/api/generate-email(.*)",
+    "/api/github(.*)",
     "/api/payout(.*)",
     "/api/preview(.*)",
     "/api/runAgent(.*)",

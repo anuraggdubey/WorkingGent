@@ -18,6 +18,7 @@
 
 # Generated app output
 /projects/
+/workspaces/
 
 # Environment files and secrets
 .env
