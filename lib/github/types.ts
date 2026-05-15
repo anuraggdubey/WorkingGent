@@ -168,7 +168,7 @@ export interface RepositoryIssueRecord {
     updatedAt: string
 }
 
-export type AgentTaskType = "issue_scan" | "ai_edit_plan" | "patch_apply"
+export type AgentTaskType = "issue_scan" | "ai_edit_plan" | "patch_apply" | "command_run"
 export type AgentTaskStatus = "pending" | "running" | "completed" | "failed" | "approved"
 
 export interface AgentTaskRecord {
@@ -211,4 +211,52 @@ export interface AIEditPlanResult {
     task: AgentTaskRecord
     files: AIEditPlanFile[]
     warnings: string[]
+}
+
+export type AllowedWorkspaceCommand =
+    | "npm"
+    | "pnpm"
+    | "yarn"
+    | "node"
+    | "jest"
+    | "eslint"
+    | "prettier"
+    | "tsc"
+    | "next"
+
+export interface WorkspaceCommandRequest {
+    workspaceId: string
+    command: AllowedWorkspaceCommand
+    args: string[]
+}
+
+export interface WorkspaceCommandPolicy {
+    command: AllowedWorkspaceCommand
+    description: string
+    examples: string[]
+}
+
+export interface SandboxExecutionPreview {
+    workspaceId: string
+    command: AllowedWorkspaceCommand
+    args: string[]
+    dockerImage: string
+    workingDirectory: string
+    timeoutMs: number
+    cpuLimit: number
+    memoryLimitMb: number
+    commandLine: string
+    dockerCommandLine: string
+}
+
+export interface SandboxExecutionResult {
+    task: AgentTaskRecord
+    preview: SandboxExecutionPreview
+    exitCode: number
+    stdout: string
+    stderr: string
+    durationMs: number
+    startedAt: string
+    completedAt: string
+    timedOut: boolean
 }

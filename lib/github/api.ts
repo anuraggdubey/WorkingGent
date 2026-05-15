@@ -1,5 +1,18 @@
 import { NextResponse } from "next/server"
 import { AgentExecutionError } from "@/lib/agents/shared"
+import type { AllowedWorkspaceCommand } from "@/lib/github/types"
+
+const ALLOWED_WORKSPACE_COMMANDS = new Set<AllowedWorkspaceCommand>([
+    "npm",
+    "pnpm",
+    "yarn",
+    "node",
+    "jest",
+    "eslint",
+    "prettier",
+    "tsc",
+    "next",
+])
 
 export function parseCloneWorkspaceBody(body: unknown) {
     if (!body || typeof body !== "object") {
@@ -176,6 +189,27 @@ export function parseAIEditApplyBody(body: unknown) {
     }
 
     return { workspaceId, taskId, filePaths }
+}
+
+export function parseWorkspaceCommandBody(body: unknown) {
+    if (!body || typeof body !== "object") {
+        throw new AgentExecutionError("INVALID_REQUEST", "Request body is required.", 400)
+    }
+
+    const payload = body as Record<string, unknown>
+    const workspaceId = typeof payload.workspaceId === "string" ? payload.workspaceId.trim() : ""
+    const command = typeof payload.command === "string" ? payload.command.trim() : ""
+    const args = Array.isArray(payload.args) ? payload.args.map(String) : []
+
+    if (!workspaceId || !command) {
+        throw new AgentExecutionError("INVALID_REQUEST", "workspaceId and command are required.", 400)
+    }
+
+    if (!ALLOWED_WORKSPACE_COMMANDS.has(command as AllowedWorkspaceCommand)) {
+        throw new AgentExecutionError("INVALID_REQUEST", "Unsupported workspace command.", 400)
+    }
+
+    return { workspaceId, command: command as AllowedWorkspaceCommand, args }
 }
 
 export function errorResponse(error: unknown) {

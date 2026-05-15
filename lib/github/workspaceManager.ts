@@ -8,6 +8,7 @@ import { GitService } from "@/lib/github/gitService"
 import { IssueDetectionService } from "@/lib/github/issueDetectionService"
 import { IssueStore } from "@/lib/github/issueStore"
 import { generatePullRequestDraft } from "@/lib/github/prAutomation"
+import { SandboxExecutionService } from "@/lib/github/sandboxExecutionService"
 import { TaskStore } from "@/lib/github/taskStore"
 import { WorkspaceStore } from "@/lib/github/workspaceStore"
 import type {
@@ -16,7 +17,9 @@ import type {
     CloneWorkspaceInput,
     CreateBranchInput,
     PullRequestAutomationInput,
+    SandboxExecutionResult,
     RepositoryWorkspaceRecord,
+    WorkspaceCommandRequest,
 } from "@/lib/github/types"
 import { getWorkspaceRoot, resolveWorkspaceFilePath, resolveWorkspacePath, slugifySegment, toWorkspaceId } from "@/lib/github/utils"
 import { logger } from "@/lib/server/logger"
@@ -32,7 +35,8 @@ export class WorkspaceManager {
         private readonly issueStore = new IssueStore(),
         private readonly taskStore = new TaskStore(),
         private readonly issueDetectionService = new IssueDetectionService(),
-        private readonly aiEditingService = new AIEditingService()
+        private readonly aiEditingService = new AIEditingService(),
+        private readonly sandboxExecutionService = new SandboxExecutionService()
     ) {}
 
     private async createTask(input: {
@@ -551,6 +555,55 @@ export class WorkspaceManager {
             await this.updateTask(applyingTask, {
                 status: "failed",
                 errorMessage: error instanceof Error ? error.message : "Patch application failed.",
+            })
+            throw error
+        }
+    }
+
+    async previewWorkspaceCommand(userId: string, request: WorkspaceCommandRequest) {
+        const workspace = await this.getWorkspaceForUser(userId, request.workspaceId)
+        return this.sandboxExecutionService.buildPreview(workspace, request)
+    }
+
+    async runWorkspaceCommand(userId: string, request: WorkspaceCommandRequest): Promise<SandboxExecutionResult> {
+        const workspace = await this.getWorkspaceForUser(userId, request.workspaceId)
+        const runningTask = await this.createTask({
+            workspace,
+            taskType: "command_run",
+            status: "running",
+            inputSummary: `${request.command} ${request.args.join(" ")}`.trim(),
+            metadata: {
+                command: request.command,
+                args: request.args,
+            },
+        })
+
+        try {
+            const result = await this.sandboxExecutionService.run(workspace, runningTask, request)
+            const resultSummary = result.exitCode === 0
+                ? `Sandbox command completed successfully in ${result.durationMs}ms.`
+                : `Sandbox command exited with code ${result.exitCode} in ${result.durationMs}ms.`
+
+            const completedTask = await this.updateTask(runningTask, {
+                status: result.exitCode === 0 ? "completed" : "failed",
+                resultSummary,
+                errorMessage: result.exitCode === 0 ? undefined : result.stderr || `Exit code ${result.exitCode}`,
+                metadata: {
+                    preview: result.preview,
+                    exitCode: result.exitCode,
+                    durationMs: result.durationMs,
+                    timedOut: result.timedOut,
+                },
+            })
+
+            return {
+                ...result,
+                task: completedTask,
+            }
+        } catch (error) {
+            await this.updateTask(runningTask, {
+                status: "failed",
+                errorMessage: error instanceof Error ? error.message : "Sandbox command failed.",
             })
             throw error
         }

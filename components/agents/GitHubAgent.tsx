@@ -4,11 +4,12 @@ import { useCallback, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import {
     AlertCircle, BookOpenText, CheckCircle2, Clock,
-    FolderGit2, Github, Globe, Loader2, RefreshCw, Send, Sparkles,
+    FolderGit2, Github, Globe, Loader2, Play, RefreshCw, Send, Shield, Sparkles, TerminalSquare,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import type { Components } from "react-markdown"
 import { useAgentContext } from "@/lib/AgentContext"
+import MonacoCodeEditor from "@/components/agents/MonacoCodeEditor"
 
 type Repo = { id: number; name: string; fullName: string; description: string; language: string; stars: number; isPrivate: boolean; defaultBranch: string }
 type GHUser = { login: string; name: string; avatarUrl: string }
@@ -76,7 +77,7 @@ type RepositoryIssue = {
 }
 type AgentTask = {
     id: string
-    taskType: "issue_scan" | "ai_edit_plan" | "patch_apply"
+    taskType: "issue_scan" | "ai_edit_plan" | "patch_apply" | "command_run"
     status: "pending" | "running" | "completed" | "failed" | "approved"
     inputSummary: string
     resultSummary?: string
@@ -94,9 +95,54 @@ type AIEditPlan = {
     files: AIPlanFile[]
     warnings: string[]
 }
+type CommandPolicy = {
+    command: "npm" | "pnpm" | "yarn" | "node" | "jest" | "eslint" | "prettier" | "tsc" | "next"
+    description: string
+    examples: string[]
+}
+type CommandPreview = {
+    workspaceId: string
+    command: CommandPolicy["command"]
+    args: string[]
+    dockerImage: string
+    workingDirectory: string
+    timeoutMs: number
+    cpuLimit: number
+    memoryLimitMb: number
+    commandLine: string
+    dockerCommandLine: string
+}
+type CommandResult = {
+    preview: CommandPreview
+    exitCode: number
+    stdout: string
+    stderr: string
+    durationMs: number
+    startedAt: string
+    completedAt: string
+    timedOut: boolean
+}
 
 function getErrorMessage(error: unknown, fallback: string) {
     return error instanceof Error ? error.message : fallback
+}
+
+function inferLanguageFromPath(filePath: string) {
+    const extension = filePath.split(".").pop()?.toLowerCase() ?? ""
+
+    if (extension === "ts" || extension === "mts" || extension === "cts") return "typescript"
+    if (extension === "tsx") return "typescript"
+    if (extension === "js" || extension === "mjs" || extension === "cjs") return "javascript"
+    if (extension === "jsx") return "javascript"
+    if (extension === "json") return "json"
+    if (extension === "md" || extension === "mdx") return "markdown"
+    if (extension === "css" || extension === "scss") return "css"
+    if (extension === "html") return "html"
+    if (extension === "yml" || extension === "yaml") return "yaml"
+    if (extension === "py") return "python"
+    if (extension === "go") return "go"
+
+    return "plaintext"
 }
 
 export default function GitHubAgent() {
@@ -146,6 +192,13 @@ export default function GitHubAgent() {
     const [aiEditPrompt, setAiEditPrompt] = useState("")
     const [aiEditFilePaths, setAiEditFilePaths] = useState("")
     const [aiEditPlan, setAiEditPlan] = useState<AIEditPlan | null>(null)
+    const [commandPolicies, setCommandPolicies] = useState<CommandPolicy[]>([])
+    const [commandLoading, setCommandLoading] = useState(false)
+    const [commandPreviewLoading, setCommandPreviewLoading] = useState(false)
+    const [selectedCommand, setSelectedCommand] = useState<CommandPolicy["command"]>("npm")
+    const [commandArgs, setCommandArgs] = useState("run lint")
+    const [commandPreview, setCommandPreview] = useState<CommandPreview | null>(null)
+    const [commandResult, setCommandResult] = useState<CommandResult | null>(null)
 
     // "Analyze Any Repo" state
     const [repoUrl, setRepoUrl] = useState("")
@@ -158,6 +211,17 @@ export default function GitHubAgent() {
     }, [])
 
     useEffect(() => { void refreshPlatformStatus() }, [refreshPlatformStatus])
+
+    const loadCommandPolicies = useCallback(async () => {
+        try {
+            const res = await fetch("/api/github/commands")
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error ?? "Failed to load command policies")
+            setCommandPolicies(Array.isArray(data.policies) ? data.policies : [])
+        } catch (err) {
+            setError(getErrorMessage(err, "Failed to load command policies"))
+        }
+    }, [])
 
     // --- OAuth helpers ---
     const loadGitHubConnection = useCallback(async () => {
@@ -219,8 +283,9 @@ export default function GitHubAgent() {
     useEffect(() => {
         if (mode === "oauth" && ghUser) {
             void loadWorkspaces()
+            void loadCommandPolicies()
         }
-    }, [ghUser, loadWorkspaces, mode])
+    }, [ghUser, loadCommandPolicies, loadWorkspaces, mode])
 
     useEffect(() => {
         if (!selectedRepo) {
@@ -235,6 +300,8 @@ export default function GitHubAgent() {
             setEditorContent("")
             setDiffPreview(null)
             setAiEditPlan(null)
+            setCommandPreview(null)
+            setCommandResult(null)
             return
         }
 
@@ -245,6 +312,17 @@ export default function GitHubAgent() {
             void loadWorkspaceStatus(nextWorkspace.id)
         }
     }, [loadWorkspaceStatus, selectedRepo, workspaces])
+
+    useEffect(() => {
+        const policy = commandPolicies.find((item) => item.command === selectedCommand)
+        if (!policy?.examples?.length) {
+            return
+        }
+
+        const firstExample = policy.examples[0]
+        const nextArgs = firstExample.split(" ").slice(1).join(" ")
+        setCommandArgs(nextArgs)
+    }, [commandPolicies, selectedCommand])
 
     const beginOAuth = useCallback(() => { setConnecting(true); window.location.href = "/api/auth/github" }, [])
 
@@ -558,6 +636,55 @@ export default function GitHubAgent() {
         }
     }
 
+    const previewSandboxCommand = async () => {
+        if (!workspace) return
+        setCommandPreviewLoading(true); setError(null)
+        try {
+            const args = commandArgs.split(" ").map((item) => item.trim()).filter(Boolean)
+            const res = await fetch("/api/github/commands/preview", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    workspaceId: workspace.id,
+                    command: selectedCommand,
+                    args,
+                }),
+            })
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error ?? "Failed to preview sandbox command")
+            setCommandPreview(data.preview ?? null)
+        } catch (err) {
+            setError(getErrorMessage(err, "Failed to preview sandbox command"))
+        } finally {
+            setCommandPreviewLoading(false)
+        }
+    }
+
+    const runSandboxCommand = async () => {
+        if (!workspace) return
+        setCommandLoading(true); setError(null)
+        try {
+            const args = commandArgs.split(" ").map((item) => item.trim()).filter(Boolean)
+            const res = await fetch("/api/github/commands", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    workspaceId: workspace.id,
+                    command: selectedCommand,
+                    args,
+                }),
+            })
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error ?? "Failed to run sandbox command")
+            setCommandResult(data)
+            await loadWorkspaceStatus(workspace.id)
+        } catch (err) {
+            setError(getErrorMessage(err, "Failed to run sandbox command"))
+        } finally {
+            setCommandLoading(false)
+        }
+    }
+
     // --- Parse repo URL ---
     function parseRepoUrl(input: string): { owner: string; repo: string } | null {
         const trimmed = input.trim().replace(/\/+$/, "").replace(/\.git$/, "")
@@ -812,11 +939,38 @@ export default function GitHubAgent() {
                                     <InfoCard label="Status" value={workspace.syncStatus} />
                                     <InfoCard label="Tracked Files" value={`${workspaceStatus?.changedFiles.length ?? 0}`} />
                                     <InfoCard label="Working Tree" value={workspaceStatus?.isClean ? "Clean" : "Modified"} />
+                                    <InfoCard label="Ahead / Behind" value={`${workspaceStatus?.ahead ?? 0} / ${workspaceStatus?.behind ?? 0}`} />
+                                    <InfoCard label="Open Findings" value={`${workspaceIssues.length}`} />
                                 </div>
 
                                 <div className="rounded-lg border border-border bg-background p-3.5">
                                     <div className="text-[11px] font-medium uppercase tracking-wider text-muted">Local Path</div>
                                     <div className="mt-1 break-all font-mono text-xs text-foreground-soft">{workspace.localPath}</div>
+                                </div>
+
+                                <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+                                    <div className="rounded-lg border border-border bg-background p-4">
+                                        <div className="flex items-center gap-2">
+                                            <Shield size={14} className="text-primary" />
+                                            <div className="text-[11px] font-medium uppercase tracking-wider text-muted">Execution Policy</div>
+                                        </div>
+                                        <p className="mt-3 text-[13px] leading-relaxed text-foreground-soft sm:text-sm">
+                                            Workspace commands run only through Docker with network disabled, CPU and memory limits, dropped Linux capabilities,
+                                            and an allowlisted tool set. No free-form shell execution is permitted.
+                                        </p>
+                                    </div>
+                                    <div className="rounded-lg border border-border bg-background p-4">
+                                        <div className="flex items-center gap-2">
+                                            <Github size={14} className="text-primary" />
+                                            <div className="text-[11px] font-medium uppercase tracking-wider text-muted">Workspace Pulse</div>
+                                        </div>
+                                        <div className="mt-3 grid grid-cols-2 gap-3">
+                                            <PulseStat label="Commits" value={String(workspaceCommits.length)} />
+                                            <PulseStat label="Pull Requests" value={String(workspacePullRequests.length)} />
+                                            <PulseStat label="Agent Tasks" value={String(workspaceTasks.length)} />
+                                            <PulseStat label="Tracked Branch" value={workspaceStatus?.trackingBranch ?? "None"} />
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div className="flex flex-wrap gap-2">
@@ -940,6 +1094,99 @@ export default function GitHubAgent() {
 
                                 <div className="rounded-lg border border-border bg-background">
                                     <div className="border-b border-border px-4 py-3">
+                                        <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-muted">
+                                            <TerminalSquare size={14} className="text-primary" />
+                                            Sandbox Command Runner
+                                        </div>
+                                    </div>
+                                    <div className="space-y-4 p-4">
+                                        <div className="grid gap-3 lg:grid-cols-[180px_1fr]">
+                                            <select
+                                                value={selectedCommand}
+                                                onChange={(e) => setSelectedCommand(e.target.value as CommandPolicy["command"])}
+                                                className="w-full rounded-lg border border-border bg-background px-3.5 py-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                            >
+                                                {commandPolicies.map((policy) => (
+                                                    <option key={policy.command} value={policy.command}>{policy.command}</option>
+                                                ))}
+                                            </select>
+                                            <input
+                                                value={commandArgs}
+                                                onChange={(e) => setCommandArgs(e.target.value)}
+                                                placeholder="run lint"
+                                                className="w-full rounded-lg border border-border bg-background px-3.5 py-3 font-mono text-sm text-foreground placeholder:text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                            />
+                                        </div>
+
+                                        {commandPolicies.find((policy) => policy.command === selectedCommand) && (
+                                            <div className="rounded-lg border border-border bg-surface-elevated p-3 text-[12px] leading-relaxed text-foreground-soft sm:text-xs">
+                                                <div className="font-medium text-foreground">
+                                                    {commandPolicies.find((policy) => policy.command === selectedCommand)?.description}
+                                                </div>
+                                                <div className="mt-2 font-mono text-muted">
+                                                    {commandPolicies.find((policy) => policy.command === selectedCommand)?.examples.join(" • ")}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className="flex flex-wrap gap-2">
+                                            <button
+                                                onClick={() => void previewSandboxCommand()}
+                                                disabled={!workspace || commandPreviewLoading}
+                                                className="flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-surface-elevated disabled:opacity-50"
+                                                style={{ minHeight: 44 }}
+                                            >
+                                                {commandPreviewLoading ? <Loader2 size={14} className="animate-spin" /> : <Shield size={14} />}
+                                                Preview Sandbox
+                                            </button>
+                                            <button
+                                                onClick={() => void runSandboxCommand()}
+                                                disabled={!workspace || commandLoading}
+                                                className="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:opacity-50"
+                                                style={{ minHeight: 44 }}
+                                            >
+                                                {commandLoading ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+                                                Run In Sandbox
+                                            </button>
+                                        </div>
+
+                                        {commandPreview && (
+                                            <div className="rounded-lg border border-border bg-[#0d1117] p-3">
+                                                <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted">Sandbox Preview</div>
+                                                <div className="space-y-2 font-mono text-[11px] leading-relaxed text-gray-300">
+                                                    <div>Command: {commandPreview.commandLine}</div>
+                                                    <div>Image: {commandPreview.dockerImage}</div>
+                                                    <div>Limits: {commandPreview.cpuLimit} CPU • {commandPreview.memoryLimitMb}MB • {commandPreview.timeoutMs}ms</div>
+                                                    <div className="break-all text-gray-400">{commandPreview.dockerCommandLine}</div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {commandResult && (
+                                            <div className="rounded-lg border border-border bg-[#0d1117] p-3">
+                                                <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-muted">
+                                                    <span>Last Run</span>
+                                                    <span className={`rounded-full px-2 py-0.5 ${commandResult.exitCode === 0 ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>
+                                                        exit {commandResult.exitCode}
+                                                    </span>
+                                                </div>
+                                                <div className="grid gap-3 lg:grid-cols-2">
+                                                    <div>
+                                                        <div className="mb-2 text-[11px] uppercase tracking-wider text-muted">Stdout</div>
+                                                        <pre className="max-h-[240px] overflow-auto whitespace-pre-wrap text-[11px] leading-relaxed text-gray-300">{commandResult.stdout || "No stdout"}</pre>
+                                                    </div>
+                                                    <div>
+                                                        <div className="mb-2 text-[11px] uppercase tracking-wider text-muted">Stderr</div>
+                                                        <pre className="max-h-[240px] overflow-auto whitespace-pre-wrap text-[11px] leading-relaxed text-gray-300">{commandResult.stderr || "No stderr"}</pre>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="rounded-lg border border-border bg-background">
+                                    <div className="border-b border-border px-4 py-3">
                                         <div className="text-[11px] font-medium uppercase tracking-wider text-muted">AI Edit Planner</div>
                                     </div>
                                     <div className="space-y-4 p-4">
@@ -1028,12 +1275,11 @@ export default function GitHubAgent() {
                                             </button>
                                         </div>
 
-                                        <textarea
+                                        <MonacoCodeEditor
                                             value={editorContent}
-                                            onChange={(e) => setEditorContent(e.target.value)}
-                                            rows={14}
-                                            placeholder="Load a repository file to preview and edit it safely."
-                                            className="w-full rounded-lg border border-border bg-[#0d1117] px-3.5 py-3 font-mono text-xs text-gray-200 placeholder:text-gray-500 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                            onChange={setEditorContent}
+                                            language={inferLanguageFromPath(activeFilePath)}
+                                            height={420}
                                         />
 
                                         <div className="flex flex-wrap gap-2">
@@ -1304,6 +1550,15 @@ function StatusCell({ label, ready }: { label: string; ready: boolean }) {
         <div className="flex items-center gap-2 bg-surface px-3.5 py-3 sm:px-4">
             {ready ? <CheckCircle2 size={14} className="shrink-0 text-emerald-500" /> : <Clock size={14} className="shrink-0 text-muted" />}
             <span className={`text-xs font-medium ${ready ? "text-foreground" : "text-muted"}`}>{label}</span>
+        </div>
+    )
+}
+
+function PulseStat({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="rounded-lg border border-border bg-surface-elevated px-3 py-3">
+            <div className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted">{label}</div>
+            <div className="mt-1 text-sm font-semibold text-foreground">{value}</div>
         </div>
     )
 }
