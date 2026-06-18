@@ -1,36 +1,35 @@
 import OpenAI from "openai"
 import { AgentExecutionError, createLlmError } from "@/lib/agents/shared"
 
-const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-const DEFAULT_MODEL = process.env.OPENROUTER_MODEL ?? "openai/gpt-4o-mini"
+const GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+const DEFAULT_MODEL = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile"
 const FALLBACK_MODELS = [
     DEFAULT_MODEL,
-    "openai/gpt-4o-mini",
-    "openai/gpt-4o-mini-2024-07-18",
-    "google/gemma-3-27b-it:free",
-    "mistralai/mistral-small-3.1-24b-instruct:free",
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "gemma2-9b-it",
+    "mixtral-8x7b-32768",
 ]
 
 function getApiKey() {
-    const apiKey = process.env.OPENROUTER_API_KEY ?? process.env.OPENAI_API_KEY
+    const apiKey = process.env.GROQ_API_KEY
 
     if (!apiKey) {
-        throw new Error("OpenRouter API key is not configured")
+        throw new Error("Groq API key is not configured. Set GROQ_API_KEY in your .env.local file.")
     }
 
     return apiKey
 }
 
-export function getOpenRouterClient() {
+export function getGroqClient() {
     return new OpenAI({
         apiKey: getApiKey(),
-        baseURL: OPENROUTER_BASE_URL,
-        defaultHeaders: {
-            "HTTP-Referer": process.env.APP_URL ?? "http://localhost:3001",
-            "X-Title": "WorkingGent",
-        },
+        baseURL: GROQ_BASE_URL,
     })
 }
+
+/** @deprecated Use getGroqClient() instead */
+export const getOpenRouterClient = getGroqClient
 
 export async function completeWithOpenRouter(options: {
     system: string
@@ -55,7 +54,7 @@ export async function completeWithOpenRouterMessages(options: {
     maxTokens?: number
     temperature?: number
 }) {
-    const client = getOpenRouterClient()
+    const client = getGroqClient()
     const models = options.model ? [options.model] : FALLBACK_MODELS
     let lastError: unknown
 
@@ -87,7 +86,7 @@ export async function completeWithOpenRouterMessages(options: {
 
     throw createLlmError(
         lastError,
-        "OpenRouter request failed after exhausting fallback models"
+        "Groq request failed after exhausting fallback models"
     )
 }
 

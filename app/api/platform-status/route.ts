@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server"
 import { getGitHubOAuthConfig, readGitHubSession } from "@/lib/githubAuth"
 
-async function getOpenRouterStatus() {
-    const apiKey = process.env.OPENROUTER_API_KEY ?? process.env.OPENAI_API_KEY
-    const model = process.env.OPENROUTER_MODEL ?? "openai/gpt-4o-mini"
+async function getGroqStatus() {
+    const apiKey = process.env.GROQ_API_KEY
+    const model = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile"
 
     if (!apiKey) {
         return { configured: false, model, available: false }
     }
 
     try {
-        const response = await fetch("https://openrouter.ai/api/v1/auth/key", {
+        const response = await fetch("https://api.groq.com/openai/v1/models", {
             headers: { Authorization: `Bearer ${apiKey}` },
             cache: "no-store",
         })
@@ -19,13 +19,10 @@ async function getOpenRouterStatus() {
             return { configured: true, model, available: false }
         }
 
-        const payload = await response.json()
         return {
             configured: true,
             model,
             available: true,
-            isFreeTier: Boolean(payload?.data?.is_free_tier),
-            usageWeekly: payload?.data?.usage_weekly ?? 0,
         }
     } catch {
         return { configured: true, model, available: false }
@@ -71,13 +68,13 @@ async function getGitHubStatus() {
 }
 
 export async function GET() {
-    const [openrouter, github] = await Promise.all([
-        getOpenRouterStatus(),
+    const [groq, github] = await Promise.all([
+        getGroqStatus(),
         getGitHubStatus(),
     ])
 
     return NextResponse.json({
-        llm: openrouter,
+        llm: groq,
         tools: {
             searchConfigured: Boolean(process.env.SERPAPI_API_KEY ?? process.env.SERP_API_KEY),
             emailConfigured: Boolean(process.env.EMAIL_USER && process.env.EMAIL_PASS),

@@ -304,8 +304,8 @@ const BROWSER_STEPS: Omit<AgentStep, "status">[] = [
 
 function getErrorMessage(error: unknown, fallback: string) {
     const message = error instanceof Error ? error.message : fallback
-    if (message.includes("429 Provider returned error")) {
-        return "OpenRouter is rate-limiting the upstream model right now. Add credits or switch to a paid-capable model if this persists."
+    if (message.includes("429") || message.includes("rate limit")) {
+        return "Groq is rate-limiting requests right now. Wait a moment and try again, or check your Groq API usage at console.groq.com."
     }
     return message
 }
@@ -547,6 +547,7 @@ export default function AgentsPage() {
     const [documentDownloadState, setDocumentDownloadState] = useState<"idle" | "downloading">("idle")
     const [browserResult, setBrowserResult] = useState<BrowserAutomationResult | null>(null)
     const [singleFile, setSingleFile] = useState<{ code: string; filename: string; language: string } | null>(null)
+    const [complexityNote, setComplexityNote] = useState<string | null>(null)
 
     const selectAgent = (agent: AgentDef) => {
         setSelectedAgent(agent)
@@ -609,6 +610,7 @@ export default function AgentsPage() {
         setFiles(null)
         setProjectId(null)
         setSingleFile(null)
+        setComplexityNote(null)
         setSteps(initSteps(CODING_STEPS))
         setRightPanelOpen(true)
         startAgentRun("coding", `Building project from prompt: ${prompt}`)
@@ -643,6 +645,7 @@ export default function AgentsPage() {
             setStepStatus(4, "done")
             setFiles(data.files ?? null)
             setSingleFile(data.singleFile ?? null)
+            setComplexityNote(data.complexityNote ?? null)
             setProjectId(data.projectId)
             setActiveTab("preview")
             setRunState("done")
@@ -1384,6 +1387,17 @@ export default function AgentsPage() {
                             )}
 
                             {error && <ErrorBox message={error} onRetry={() => { setRunState("idle"); setError(null) }} />}
+
+                            {/* Complexity notice for users */}
+                            {selectedAgent.id === "coding" && runState === "done" && complexityNote && (
+                                <div className="animate-fade-in mt-4 flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+                                    <AlertCircle size={18} className="mt-0.5 shrink-0 text-amber-500" />
+                                    <div className="min-w-0 flex-1">
+                                        <div className="text-xs font-semibold text-amber-500">Complexity Notice</div>
+                                        <p className="mt-1 text-xs leading-relaxed text-foreground-soft">{complexityNote.replace(/⚠️\s*COMPLEXITY NOTE:\s*/i, "")}</p>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Coding output */}
                             {selectedAgent.id === "coding" && runState === "done" && files && (

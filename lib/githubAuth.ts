@@ -12,7 +12,7 @@ type GitHubSessionPayload = {
 }
 
 function getSessionSecret() {
-    const secret = process.env.GITHUB_SESSION_SECRET ?? process.env.OPENAI_API_KEY ?? process.env.OPENROUTER_API_KEY
+    const secret = process.env.GITHUB_SESSION_SECRET ?? process.env.GROQ_API_KEY ?? process.env.OPENAI_API_KEY ?? process.env.OPENROUTER_API_KEY
 
     if (!secret) {
         throw new Error("GITHUB_SESSION_SECRET is not configured")
