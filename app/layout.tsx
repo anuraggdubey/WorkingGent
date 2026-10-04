@@ -5,7 +5,6 @@ import { ThemeProvider } from "@/components/ThemeProvider"
 import { AuthProvider } from "@/lib/AuthContext"
 import AppShell from "@/components/layout/AppShell"
 import type { Metadata } from "next"
-import { ClerkProvider } from "@clerk/nextjs"
 
 const inter = Inter({
   subsets: ["latin"],
@@ -30,21 +29,13 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} ${manrope.variable} min-h-screen bg-background text-foreground antialiased`} suppressHydrationWarning>
-        <ClerkProvider
-          signInUrl="/sign-in"
-          signUpUrl="/sign-up"
-          signInFallbackRedirectUrl="/agents"
-          signUpFallbackRedirectUrl="/agents"
-          afterSignOutUrl="/"
-        >
-          <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-            <AuthProvider>
-              <AgentProvider>
-                <AppShell>{children}</AppShell>
-              </AgentProvider>
-            </AuthProvider>
-          </ThemeProvider>
-        </ClerkProvider>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+          <AuthProvider>
+            <AgentProvider>
+              <AppShell>{children}</AppShell>
+            </AgentProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

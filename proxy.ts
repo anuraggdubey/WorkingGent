@@ -1,52 +1,9 @@
 import { NextResponse } from "next/server"
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server"
+import type { NextRequest } from "next/server"
 
-const isProtectedPageRoute = createRouteMatcher([
-    "/agents(.*)",
-    "/activity(.*)",
-    "/settings(.*)",
-    "/dashboard(.*)",
-    "/analytics(.*)",
-    "/automation(.*)",
-])
-
-const isProtectedApiRoute = createRouteMatcher([
-    "/api/analyze-document(.*)",
-    "/api/analyze-repo(.*)",
-    "/api/ask-repo(.*)",
-    "/api/browser-automation(.*)",
-    "/api/connect-github(.*)",
-    "/api/createAgent(.*)",
-    "/api/download(.*)",
-    "/api/fetch-repo(.*)",
-    "/api/export-document(.*)",
-    "/api/generate-document(.*)",
-    "/api/generate-email(.*)",
-    "/api/github(.*)",
-    "/api/payout(.*)",
-    "/api/preview(.*)",
-    "/api/runAgent(.*)",
-    "/api/run-coding-agent(.*)",
-    "/api/send-email(.*)",
-    "/api/web-search(.*)",
-])
-
-export default clerkMiddleware(async (auth, req) => {
-    if (isProtectedApiRoute(req)) {
-        const { userId } = await auth()
-
-        if (!userId) {
-            return NextResponse.json(
-                { error: "Unauthorized. Sign in to continue." },
-                { status: 401 }
-            )
-        }
-    }
-
-    if (isProtectedPageRoute(req)) {
-        await auth.protect()
-    }
-})
+export default function proxy(req: NextRequest) {
+    return NextResponse.next()
+}
 
 export const config = {
     matcher: [

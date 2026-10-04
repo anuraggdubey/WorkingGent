@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server"
 import { randomBytes } from "crypto"
-import { getGitHubOAuthConfig, storeOAuthState } from "@/lib/githubAuth"
+import { getGitHubOAuthConfig, storeOAuthRedirect, storeOAuthState } from "@/lib/githubAuth"
 
-export async function GET() {
+export async function GET(req: Request) {
     const config = getGitHubOAuthConfig()
     if (!config.configured || !config.clientId) {
         return NextResponse.json({ error: "GitHub OAuth is not configured" }, { status: 500 })
+    }
+
+    const { searchParams } = new URL(req.url)
+    const redirectTo = searchParams.get("redirect")
+    if (redirectTo && redirectTo.startsWith("/")) {
+        await storeOAuthRedirect(redirectTo)
     }
 
     const state = randomBytes(24).toString("hex")
@@ -19,3 +25,4 @@ export async function GET() {
 
     return NextResponse.redirect(url)
 }
+

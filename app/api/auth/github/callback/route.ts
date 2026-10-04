@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { clearGitHubSession, consumeOAuthState, getGitHubOAuthConfig, saveGitHubSession } from "@/lib/githubAuth"
+import { clearGitHubSession, consumeOAuthRedirect, consumeOAuthState, getGitHubOAuthConfig, saveGitHubSession } from "@/lib/githubAuth"
 
 export async function GET(req: Request) {
     const url = new URL(req.url)
@@ -55,9 +55,37 @@ export async function GET(req: Request) {
         )
     }
 
-    await saveGitHubSession(payload.access_token)
+    // Fetch user profile from GitHub
+    let userProfile = undefined
+    try {
+        const userRes = await fetch("https://api.github.com/user", {
+            headers: {
+                Authorization: `Bearer ${payload.access_token}`,
+                Accept: "application/vnd.github+json",
+                "User-Agent": "WorkingGent",
+            },
+            cache: "no-store",
+        })
+        if (userRes.ok) {
+            const u = await userRes.json()
+            userProfile = {
+                id: u.id,
+                login: u.login,
+                name: u.name || u.login,
+                email: u.email || undefined,
+                avatarUrl: u.avatar_url,
+            }
+        }
+    } catch (err) {
+        console.warn("[github/callback] Could not fetch user profile:", err)
+    }
 
-    return NextResponse.redirect(`${config.appUrl}/agents?agent=github&github_connected=1`)
+    await saveGitHubSession(payload.access_token, userProfile)
+
+    const customRedirect = await consumeOAuthRedirect()
+    const targetUrl = customRedirect || `${config.appUrl}/agents?agent=github&github_connected=1`
+
+    return NextResponse.redirect(targetUrl.startsWith("/") ? `${config.appUrl}${targetUrl}` : targetUrl)
 }
 
 export async function DELETE() {

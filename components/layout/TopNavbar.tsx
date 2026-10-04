@@ -1,52 +1,16 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
-import { Activity, Github, Loader2, LogOut, Settings, Sparkles, Unplug } from "lucide-react"
+import { Activity, Github, LogOut, Settings, Sparkles } from "lucide-react"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { useAuth } from "@/lib/AuthContext"
 import { useHasMounted } from "@/lib/useHasMounted"
 
-type PlatformStatus = {
-    tools?: {
-        github?: {
-            configured: boolean
-            connected: boolean
-            login?: string
-        }
-    }
-}
-
 export default function TopNavbar() {
     const mounted = useHasMounted()
-    const { user, isAuthenticated, isHydrated, logout } = useAuth()
+    const { user, isAuthenticated, isHydrated, login, logout } = useAuth()
     const pathname = usePathname()
-    const [platformStatus, setPlatformStatus] = useState<PlatformStatus | null>(null)
-    const [githubBusy, setGithubBusy] = useState(false)
-
-    const github = platformStatus?.tools?.github
-
-    useEffect(() => {
-        fetch("/api/platform-status")
-            .then((res) => res.json())
-            .then((data) => setPlatformStatus(data))
-            .catch(() => setPlatformStatus(null))
-    }, [])
-
-    const handleGitHubDisconnect = async () => {
-        setGithubBusy(true)
-        try {
-            await fetch("/api/auth/github/callback", { method: "DELETE" })
-            const res = await fetch("/api/platform-status")
-            const data = await res.json()
-            setPlatformStatus(data)
-        } catch {
-            // noop
-        } finally {
-            setGithubBusy(false)
-        }
-    }
 
     const canRenderClientState = mounted && isHydrated
 
@@ -67,45 +31,33 @@ export default function TopNavbar() {
             </div>
 
             {/* Right */}
-            <div className="flex items-center gap-1.5 sm:gap-2">
-                {/* GitHub (desktop only) — only render after mount */}
-                {canRenderClientState && github?.configured && github.connected ? (
-                    <div className="hidden items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-xs sm:flex">
-                        <Github size={13} className="text-muted" />
-                        <span className="text-foreground-soft">@{github.login ?? "connected"}</span>
-                        <button
-                            onClick={() => void handleGitHubDisconnect()}
-                            disabled={githubBusy}
-                            className="ml-1 text-muted hover:text-foreground"
-                            aria-label="Disconnect GitHub"
-                        >
-                            {githubBusy ? <Loader2 size={12} className="animate-spin" /> : <Unplug size={12} />}
-                        </button>
-                    </div>
-                ) : canRenderClientState && github?.configured && !github.connected ? (
-                    <Link href="/api/auth/github" className="hidden items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-foreground-soft hover:text-foreground sm:inline-flex">
-                        <Github size={13} />
-                        Connect
-                    </Link>
-                ) : null}
-
+            <div className="flex items-center gap-2">
                 <ThemeToggle />
 
-                {/* Auth buttons — only render after mount to avoid hydration mismatch */}
+                {/* GitHub Authentication / Connection */}
                 {!canRenderClientState ? (
-                    <div className="h-8 w-8 rounded-lg sm:w-20" />
+                    <div className="h-8 w-24 rounded-lg bg-surface-elevated/40" />
                 ) : isAuthenticated && user ? (
-                    <div className="flex items-center gap-1.5">
-                        <span className="hidden text-xs text-foreground-soft md:inline">{user.name}</span>
-                        <button onClick={logout} className="flex h-9 w-9 items-center justify-center rounded-lg text-foreground-soft hover:bg-surface-elevated hover:text-foreground sm:h-8 sm:w-8" aria-label="Logout">
-                            <LogOut size={15} />
+                    <div className="flex items-center gap-2 rounded-lg border border-border bg-surface-elevated/60 px-2.5 py-1.5 text-xs text-foreground">
+                        <Github size={13} className="text-muted" />
+                        <span className="font-medium text-foreground">@{user.login}</span>
+                        <button
+                            onClick={() => void logout()}
+                            className="ml-1 text-muted transition-colors hover:text-red-400"
+                            title="Disconnect GitHub & Sign out"
+                            aria-label="Disconnect GitHub"
+                        >
+                            <LogOut size={13} />
                         </button>
                     </div>
                 ) : (
-                    <div className="flex items-center gap-1.5">
-                        <Link href="/sign-in" className="button-ghost text-xs">Login</Link>
-                        <Link href="/sign-up" className="button-primary text-xs">Register</Link>
-                    </div>
+                    <button
+                        onClick={() => login(pathname)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-foreground transition-all hover:bg-surface-elevated hover:border-foreground-soft/30 shadow-xs"
+                    >
+                        <Github size={13} />
+                        <span>Connect GitHub</span>
+                    </button>
                 )}
             </div>
         </header>

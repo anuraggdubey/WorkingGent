@@ -5,10 +5,20 @@ const GITHUB_SESSION_COOKIE = "workinggent_github_session"
 const GITHUB_OAUTH_STATE_COOKIE = "workinggent_github_oauth_state"
 const LEGACY_GITHUB_SESSION_COOKIE = "agentforge_github_session"
 const LEGACY_GITHUB_OAUTH_STATE_COOKIE = "agentforge_github_oauth_state"
+const GITHUB_REDIRECT_COOKIE = "workinggent_github_oauth_redirect"
 const SESSION_TTL_SECONDS = 60 * 60 * 8
 
-type GitHubSessionPayload = {
+export type GitHubUser = {
+    id?: number
+    login: string
+    name?: string
+    email?: string
+    avatarUrl?: string
+}
+
+export type GitHubSessionPayload = {
     accessToken: string
+    user?: GitHubUser
 }
 
 function getSessionSecret() {
@@ -55,9 +65,9 @@ export function getGitHubOAuthConfig() {
     }
 }
 
-export async function saveGitHubSession(accessToken: string) {
+export async function saveGitHubSession(accessToken: string, user?: GitHubUser) {
     const store = await cookies()
-    const payload: GitHubSessionPayload = { accessToken }
+    const payload: GitHubSessionPayload = { accessToken, user }
     store.set(GITHUB_SESSION_COOKIE, encrypt(JSON.stringify(payload)), {
         httpOnly: true,
         sameSite: "lax",
@@ -130,4 +140,28 @@ export async function consumeOAuthState(expected: string) {
     if (actualBuffer.length !== expectedBuffer.length) return false
 
     return timingSafeEqual(actualBuffer, expectedBuffer)
+}
+
+export async function storeOAuthRedirect(redirectUrl: string) {
+    const store = await cookies()
+    store.set(GITHUB_REDIRECT_COOKIE, redirectUrl, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 600,
+    })
+}
+
+export async function consumeOAuthRedirect(): Promise<string | null> {
+    const store = await cookies()
+    const redirectUrl = store.get(GITHUB_REDIRECT_COOKIE)?.value ?? null
+    store.set(GITHUB_REDIRECT_COOKIE, "", {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        expires: new Date(0),
+    })
+    return redirectUrl
 }

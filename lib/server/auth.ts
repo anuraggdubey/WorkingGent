@@ -1,14 +1,27 @@
-import { auth } from "@clerk/nextjs/server"
+import { readGitHubSession } from "@/lib/githubAuth"
 import { AgentExecutionError } from "@/lib/agents/shared"
 
 export async function requireAuthenticatedUser() {
-    const session = await auth()
+    const session = await readGitHubSession()
 
-    if (!session.userId) {
-        throw new AgentExecutionError("UNAUTHORIZED", "Unauthorized. Sign in to continue.", 401)
+    if (session?.accessToken) {
+        return {
+            userId: session.user?.login || "github_user",
+            accessToken: session.accessToken,
+            user: session.user,
+        }
     }
 
-    return {
-        userId: session.userId,
+    if (process.env.GITHUB_PAT) {
+        return {
+            userId: "dev_user",
+            accessToken: process.env.GITHUB_PAT,
+        }
     }
+
+    throw new AgentExecutionError(
+        "UNAUTHORIZED",
+        "GitHub is not connected. Connect your GitHub account to continue.",
+        401
+    )
 }

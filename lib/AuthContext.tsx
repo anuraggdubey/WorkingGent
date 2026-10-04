@@ -1,41 +1,100 @@
 "use client"
 
-import React from "react"
-import { useClerk, useUser } from "@clerk/nextjs"
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react"
 
-interface AuthUser {
-    name: string
-    email: string
+export interface AuthUser {
+    id?: number
+    login: string
+    name?: string
+    email?: string
+    avatarUrl?: string
 }
 
-interface AuthContextType {
+export interface AuthContextType {
     user: AuthUser | null
     isAuthenticated: boolean
     isHydrated: boolean
+    login: (redirectTo?: string) => void
     logout: () => Promise<void>
+    refresh: () => Promise<void>
 }
 
+const defaultAuthContext: AuthContextType = {
+    user: null,
+    isAuthenticated: false,
+    isHydrated: false,
+    login: () => {},
+    logout: async () => {},
+    refresh: async () => {},
+}
+
+const AuthContext = createContext<AuthContextType>(defaultAuthContext)
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-    return <>{children}</>
+    const [user, setUser] = useState<AuthUser | null>(null)
+    const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false)
+    const [isHydrated, setIsHydrated] = useState<boolean>(false)
+
+    const checkAuth = useCallback(async () => {
+        try {
+            const res = await fetch("/api/auth/me", { cache: "no-store" })
+            if (res.ok) {
+                const data = await res.json()
+                if (data.isAuthenticated && data.user) {
+                    setUser(data.user)
+                    setIsAuthenticated(true)
+                } else {
+                    setUser(null)
+                    setIsAuthenticated(false)
+                }
+            } else {
+                setUser(null)
+                setIsAuthenticated(false)
+            }
+        } catch {
+            setUser(null)
+            setIsAuthenticated(false)
+        } finally {
+            setIsHydrated(true)
+        }
+    }, [])
+
+    useEffect(() => {
+        checkAuth()
+    }, [checkAuth])
+
+    const login = useCallback((redirectTo?: string) => {
+        const query = redirectTo ? `?redirect=${encodeURIComponent(redirectTo)}` : ""
+        window.location.href = `/api/auth/github${query}`
+    }, [])
+
+    const logout = useCallback(async () => {
+        try {
+            await fetch("/api/auth/github/callback", { method: "DELETE" })
+        } catch {
+            // ignore network failure
+        }
+        setUser(null)
+        setIsAuthenticated(false)
+        window.location.href = "/"
+    }, [])
+
+    return (
+        <AuthContext.Provider
+            value={{
+                user,
+                isAuthenticated,
+                isHydrated,
+                login,
+                logout,
+                refresh: checkAuth,
+            }}
+        >
+            {children}
+        </AuthContext.Provider>
+    )
 }
 
 export function useAuth(): AuthContextType {
-    const { isLoaded, isSignedIn, user } = useUser()
-    const { signOut } = useClerk()
-
-    const fullName = user?.fullName?.trim()
-    const fallbackName = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim()
-    const email = user?.primaryEmailAddress?.emailAddress ?? ""
-
-    return {
-        user: isSignedIn
-            ? {
-                name: fullName || fallbackName || email || "Member",
-                email,
-            }
-            : null,
-        isAuthenticated: Boolean(isSignedIn),
-        isHydrated: isLoaded,
-        logout: () => signOut(),
-    }
+    return useContext(AuthContext)
 }
