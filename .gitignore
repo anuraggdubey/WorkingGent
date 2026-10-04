@@ -15,10 +15,12 @@
 /.next/
 /out/
 /build
+next-env.d.ts
 
-# Generated app output
+# Generated app output and workspaces
 /projects/
 /workspaces/
+*.tsbuildinfo
 
 # Environment files and secrets
 .env
@@ -40,6 +42,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+.next-dev.log
+.next-dev.err.log
 build_output.log
 ts_error.txt
 
@@ -58,7 +62,3 @@ Thumbs.db
 
 # Deployment
 .vercel
-
-# TypeScript
-*.tsbuildinfo
-next-env.d.ts
