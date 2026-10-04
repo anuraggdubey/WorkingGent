@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { executeSwarm, type SwarmPlan } from "@/lib/agents/orchestratorService"
+import { readGitHubSession } from "@/lib/githubAuth"
 import { AgentExecutionError } from "@/lib/agents/shared"
 
 export const maxDuration = 120
@@ -21,11 +22,17 @@ export async function POST(req: Request) {
         const protocol = host.includes("localhost") ? "http" : "https"
         const appBaseUrl = process.env.APP_URL || `${protocol}://${host}`
 
+        const session = await readGitHubSession()
+        const resolvedGithubToken =
+            (typeof githubToken === "string" && githubToken.trim() ? githubToken.trim() : null) ||
+            session?.accessToken ||
+            process.env.GITHUB_PAT
+
         const deliverables = await executeSwarm({
             plan: plan as SwarmPlan,
             userEmail: typeof userEmail === "string" ? userEmail : undefined,
             investorEmails: Array.isArray(investorEmails) ? investorEmails : undefined,
-            githubToken: typeof githubToken === "string" ? githubToken : undefined,
+            githubToken: resolvedGithubToken || undefined,
             appBaseUrl,
         })
 

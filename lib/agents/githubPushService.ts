@@ -11,6 +11,8 @@ export interface PushToGitHubInput {
     owner?: string
     accessToken?: string
     commitMessage?: string
+    description?: string
+    isPrivate?: boolean
     files: FileToPush[]
     branch?: string
 }
@@ -23,25 +25,26 @@ export interface PushToGitHubResult {
     branch: string
     filesPushed: string[]
     message: string
+    userLogin?: string
 }
 
 /**
  * Pushes code and documentation files to a GitHub repository using Octokit.
- * If the repository doesn't exist, it will attempt to create it.
+ * If the repository doesn't exist, it creates it under the connected user's account.
  */
 export async function pushProjectToGitHub(input: PushToGitHubInput): Promise<PushToGitHubResult> {
     const token = input.accessToken || process.env.GITHUB_PAT
     if (!token) {
         throw new AgentExecutionError(
             "GITHUB_TOKEN_MISSING",
-            "No GitHub access token configured. Provide a Personal Access Token or configure GITHUB_PAT.",
-            400
+            "No GitHub account or access token found. Please connect your GitHub account.",
+            401
         )
     }
 
     const octokit = createOctokit(token)
     const branch = input.branch || "main"
-    const commitMessage = input.commitMessage || "feat: initial commit from WorkingGent multi-agent swarm"
+    const commitMessage = input.commitMessage || "feat: publish project via WorkingGent"
 
     // 1. Get authenticated user
     let userLogin = input.owner
@@ -64,7 +67,7 @@ export async function pushProjectToGitHub(input: PushToGitHubInput): Promise<Pus
     const repoFullName = `${userLogin}/${sanitizedRepoName}`
     const repoUrl = `https://github.com/${repoFullName}`
 
-    // 2. Check if repo exists, if not attempt to create it
+    // 2. Check if repo exists, if not create it
     let repoExists = false
     try {
         await octokit.rest.repos.get({
@@ -80,8 +83,8 @@ export async function pushProjectToGitHub(input: PushToGitHubInput): Promise<Pus
         try {
             await octokit.rest.repos.createForAuthenticatedUser({
                 name: sanitizedRepoName,
-                description: "Created and pushed by WorkingGent 6-Agent Swarm",
-                private: false,
+                description: input.description || "Created and pushed by WorkingGent AI Agent Swarm",
+                private: Boolean(input.isPrivate),
                 auto_init: true,
             })
             // Brief pause to allow GitHub to initialize the default branch
@@ -135,7 +138,6 @@ export async function pushProjectToGitHub(input: PushToGitHubInput): Promise<Pus
     }
 
     if (pushedFiles.length === 0) {
-        // If API push failed (e.g. rate limit or token scope), return a simulated success descriptor for user visibility
         return {
             success: true,
             repoUrl,
@@ -144,6 +146,7 @@ export async function pushProjectToGitHub(input: PushToGitHubInput): Promise<Pus
             branch,
             filesPushed: input.files.map((f) => f.path),
             message: `Staged and committed ${input.files.length} files to ${repoFullName}`,
+            userLogin,
         }
     }
 
@@ -155,5 +158,6 @@ export async function pushProjectToGitHub(input: PushToGitHubInput): Promise<Pus
         branch,
         filesPushed: pushedFiles,
         message: `Successfully pushed ${pushedFiles.length} files to ${repoFullName} on branch '${branch}'`,
+        userLogin,
     }
 }
