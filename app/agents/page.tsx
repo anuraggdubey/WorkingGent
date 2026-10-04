@@ -33,11 +33,13 @@ import {
     RotateCcw,
     Search,
     Send,
+    Sparkles,
     Upload,
     X,
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import type { Components } from "react-markdown"
+import SwarmIDE from "@/components/orchestrator/SwarmIDE"
 import { useAgentContext } from "@/lib/AgentContext"
 import { useAuth } from "@/lib/AuthContext"
 import type { GeneratedDocumentFormat, GeneratedDocumentPayload } from "@/types/document"
@@ -505,6 +507,7 @@ function ColumnDialog({
 export default function AgentsPage() {
     const { startAgentRun, completeAgentRun, failAgentRun, logAgentEvent } = useAgentContext()
     const { user } = useAuth()
+    const [workspaceMode, setWorkspaceMode] = useState<"swarm" | "individual">("swarm")
     const [selectedAgent, setSelectedAgent] = useState<AgentDef>(AGENTS[0])
     const [runState, setRunState] = useState<RunState>("idle")
     const [error, setError] = useState<string | null>(null)
@@ -1071,8 +1074,53 @@ export default function AgentsPage() {
     const SelectedIcon = selectedAgent.icon
 
     return (
-        <div className="flex h-[calc(100dvh-3rem)] overflow-hidden sm:h-[calc(100dvh-3.5rem)]">
-            {/* ── LEFT SIDEBAR (desktop only) ── */}
+        <div className="flex h-[calc(100dvh-3rem)] flex-col overflow-hidden sm:h-[calc(100dvh-3.5rem)]">
+            {/* ── TOP WORKSPACE MODE SWITCHER (CLEAN & ORGANIZED) ── */}
+            <div className="flex shrink-0 items-center justify-between border-b border-border bg-surface px-4 py-2 text-xs sm:px-6">
+                <div className="flex items-center gap-2.5">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-muted hidden sm:inline">Mode:</span>
+                    <div className="inline-flex rounded-lg border border-border bg-surface-elevated p-0.5">
+                        <button
+                            type="button"
+                            onClick={() => setWorkspaceMode("swarm")}
+                            className={`flex items-center gap-1.5 rounded-md px-3 py-1 font-medium transition-colors ${
+                                workspaceMode === "swarm"
+                                    ? "bg-surface text-foreground shadow-xs font-semibold"
+                                    : "text-muted hover:text-foreground"
+                            }`}
+                        >
+                            <Sparkles size={13} className={workspaceMode === "swarm" ? "text-primary" : ""} />
+                            <span>6-Agent Swarm (Unified IDE)</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setWorkspaceMode("individual")}
+                            className={`flex items-center gap-1.5 rounded-md px-3 py-1 font-medium transition-colors ${
+                                workspaceMode === "individual"
+                                    ? "bg-surface text-foreground shadow-xs font-semibold"
+                                    : "text-muted hover:text-foreground"
+                            }`}
+                        >
+                            <Layers size={13} className={workspaceMode === "individual" ? "text-primary" : ""} />
+                            <span>Individual Agent Tools</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div className="text-[11px] text-foreground-soft hidden sm:block">
+                    {workspaceMode === "swarm"
+                        ? "Parallel Multi-Agent Swarm on 1 unified task"
+                        : "Single-agent manual task execution"}
+                </div>
+            </div>
+
+            {workspaceMode === "swarm" ? (
+                <div className="flex-1 overflow-hidden">
+                    <SwarmIDE />
+                </div>
+            ) : (
+                <div className="flex flex-1 overflow-hidden">
+                    {/* ── LEFT SIDEBAR (desktop only) ── */}
             <aside className="hidden w-52 shrink-0 border-r border-border lg:block">
                 <div className="p-3">
                     <div className="px-2 py-2 text-[10px] font-medium uppercase tracking-wider text-muted">Agents</div>
@@ -1947,6 +1995,8 @@ export default function AgentsPage() {
                 onClose={closeDocumentTableColumnDialog}
                 onSubmit={addDocumentTableColumn}
             />
+                </div>
+            )}
         </div>
     )
 }
